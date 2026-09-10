@@ -290,10 +290,12 @@ export function TemplateSettings() {
         fileName = uploadFileObj.name;
         fileType = isXlsx ? 'xlsx' : isDocx ? 'docx' : 'pdf';
 
-        // Extract placeholders initially
+        // Extract placeholders initially with strict 2s timeout so upload never gets delayed
         try {
           const buffer = await uploadFileObj.arrayBuffer();
-          detected = await extractPlaceholdersFromTemplate(buffer, uploadFileObj.name);
+          const scanTask = extractPlaceholdersFromTemplate(buffer, uploadFileObj.name);
+          const timeoutTask = new Promise<string[]>((resolve) => setTimeout(() => resolve([]), 2000));
+          detected = await Promise.race([scanTask, timeoutTask]);
         } catch {
           // ignore scan error
         }

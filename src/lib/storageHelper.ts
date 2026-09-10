@@ -15,17 +15,25 @@ export const fileToBase64 = (file: File): Promise<string> => {
 
 /**
  * Uploads a file to Firebase Storage with automatic seamless fallback to Base64 Data URL.
- * Guarantees that template uploads NEVER fail or get stuck.
+ * Guarantees that template and attachment uploads NEVER get stuck or hang.
  */
 export const uploadFile = async (file: File, path: string): Promise<string> => {
-  try {
+  const uploadTask = (async () => {
     const storageRef = ref(storage, `${path}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`);
     const snapshot = await uploadBytes(storageRef, file);
-    const downloadUrl = await getDownloadURL(snapshot.ref);
+    return await getDownloadURL(snapshot.ref);
+  })();
+
+  const timeoutTask = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error('STORAGE_TIMEOUT')), 3500);
+  });
+
+  try {
+    const downloadUrl = await Promise.race([uploadTask, timeoutTask]);
     return downloadUrl;
   } catch (err) {
-    console.warn('Firebase Storage upload failed or not provisioned, falling back to instant Base64 data URL:', err);
-    // Reliable local Base64 fallback
+    console.warn('Firebase Storage upload timed out or offline, using instant Base64 data URL fallback:', err);
+    // Instant local base64 fallback guarantees immediate upload completion
     const base64Url = await fileToBase64(file);
     return base64Url;
   }

@@ -1,0 +1,211 @@
+{
+  "projectInfo": {
+    "name": "PT SMK Management System",
+    "description": "Asset, schedule, and financial management application with RBAC"
+  },
+  "roles": [
+    {
+      "name": "admin",
+      "description": "Admin with full access to finance, documents, and settings"
+    },
+    {
+      "name": "user",
+      "description": "Standard user, can manage basic assets, schedules, and view documents"
+    }
+  ],
+  "collections": [
+    {
+      "name": "users",
+      "documentId": "uid",
+      "fields": [
+        {
+          "name": "uid",
+          "type": "string",
+          "description": "Firebase Auth UID"
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "description": "User email address"
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "description": "User's full name"
+        },
+        {
+          "name": "role",
+          "type": "string",
+          "description": "Assigned role (admin or user)"
+        },
+        {
+          "name": "createdAt",
+          "type": "timestamp",
+          "description": "Account creation time"
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "description": "Last update time"
+        }
+      ],
+      "rules": {
+        "read": "request.auth != null && (request.auth.uid == resource.data.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')",
+        "create": "request.auth != null",
+        "update": "request.auth != null && (request.auth.uid == resource.data.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')",
+        "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+      }
+    },
+    {
+      "name": "calibratorAssets",
+      "documentId": "auto-generated",
+      "fields": [
+        { "name": "id", "type": "string" },
+        { "name": "name", "type": "string" },
+        { "name": "serialNumber", "type": "string" },
+        { "name": "status", "type": "string" },
+        { "name": "lastCalibrationDate", "type": "string" },
+        { "name": "nextCalibrationDate", "type": "string" },
+        { "name": "calibrationCertificate", "type": "string", "description": "URL to PDF" },
+        { "name": "createdAt", "type": "timestamp" },
+        { "name": "updatedAt", "type": "timestamp" }
+      ],
+      "rules": {
+        "read": "request.auth != null",
+        "create": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
+        "update": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
+        "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+      }
+    },
+    {
+      "name": "tabletAssets",
+      "documentId": "auto-generated",
+      "fields": [
+        { "name": "id", "type": "string" },
+        { "name": "name", "type": "string" },
+        { "name": "type", "type": "string" },
+        { "name": "status", "type": "string" },
+        { "name": "borrowerName", "type": "string" },
+        { "name": "borrowDate", "type": "string" },
+        { "name": "notes", "type": "string" },
+        { "name": "createdAt", "type": "timestamp" },
+        { "name": "updatedAt", "type": "timestamp" }
+      ],
+      "rules": {
+        "read": "request.auth != null",
+        "create": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
+        "update": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
+        "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+      }
+    },
+    {
+      "name": "schedules",
+      "documentId": "auto-generated",
+      "fields": [
+        { "name": "id", "type": "string" },
+        { "name": "hospitalName", "type": "string" },
+        { "name": "date", "type": "string" },
+        { "name": "technicians", "type": "array", "items": { "type": "string" } },
+        { "name": "status", "type": "string" },
+        { "name": "notes", "type": "string" },
+        { "name": "createdAt", "type": "timestamp" },
+        { "name": "updatedAt", "type": "timestamp" }
+      ],
+      "rules": {
+        "read": "request.auth != null",
+        "create": "request.auth != null",
+        "update": "request.auth != null",
+        "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+      }
+    },
+    {
+      "name": "sphDocuments",
+      "documentId": "auto-generated",
+      "fields": [
+        { "name": "id", "type": "string" },
+        { "name": "documentNumber", "type": "string" },
+        { "name": "hospitalName", "type": "string" },
+        { "name": "date", "type": "string" },
+        { "name": "status", "type": "string" },
+        { "name": "pdfUrl", "type": "string", "description": "URL to uploaded PDF" },
+        { "name": "createdAt", "type": "timestamp" },
+        { "name": "updatedAt", "type": "timestamp" }
+      ],
+      "rules": {
+        "read": "request.auth != null",
+        "create": "request.auth != null",
+        "update": "request.auth != null",
+        "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+      }
+    },
+    {
+      "name": "spkDocuments",
+      "documentId": "auto-generated",
+      "fields": [
+        { "name": "id", "type": "string" },
+        { "name": "documentNumber", "type": "string" },
+        { "name": "hospitalName", "type": "string" },
+        { "name": "date", "type": "string" },
+        { "name": "status", "type": "string" },
+        { "name": "pdfUrl", "type": "string", "description": "URL to uploaded PDF" },
+        { "name": "createdAt", "type": "timestamp" },
+        { "name": "updatedAt", "type": "timestamp" }
+      ],
+      "rules": {
+        "read": "request.auth != null",
+        "create": "request.auth != null",
+        "update": "request.auth != null",
+        "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+      }
+    },
+    {
+      "name": "financialAssets",
+      "documentId": "auto-generated",
+      "fields": [
+        { "name": "id", "type": "string" },
+        { "name": "name", "type": "string" },
+        { "name": "category", "type": "string" },
+        { "name": "amount", "type": "number" },
+        { "name": "status", "type": "string" },
+        { "name": "bankName", "type": "string" },
+        { "name": "accountNumber", "type": "string" },
+        { "name": "notes", "type": "string" },
+        { "name": "createdAt", "type": "timestamp" },
+        { "name": "updatedAt", "type": "timestamp" }
+      ],
+      "rules": {
+        "read": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
+        "create": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
+        "update": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
+        "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+      }
+    },
+    {
+      "name": "financialTransactions",
+      "documentId": "auto-generated",
+      "fields": [
+        { "name": "id", "type": "string" },
+        { "name": "date", "type": "string" },
+        { "name": "referenceNo", "type": "string" },
+        { "name": "type", "type": "string" },
+        { "name": "category", "type": "string" },
+        { "name": "amount", "type": "number" },
+        { "name": "description", "type": "string" },
+        { "name": "relatedHospitalName", "type": "string" },
+        { "name": "marketingName", "type": "string" },
+        { "name": "auditStatus", "type": "string" },
+        { "name": "auditorName", "type": "string" },
+        { "name": "auditNotes", "type": "string" },
+        { "name": "auditedAt", "type": "string" },
+        { "name": "createdAt", "type": "timestamp" },
+        { "name": "updatedAt", "type": "timestamp" }
+      ],
+      "rules": {
+        "read": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
+        "create": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
+        "update": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
+        "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+      }
+    }
+  ]
+}

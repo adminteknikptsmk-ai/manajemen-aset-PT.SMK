@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #1C658C;
+  --color-primary-dark: #144966;
+  --color-primary-light: #247DAE;
+  --color-secondary: #398AB9;
+  --color-secondary-light: #5AA5CF;
+  --color-sand: #D8D2CB;
+  --color-sand-light: #ECE7E1;
+  --color-sand-dark: #B5ACA2;
+  --color-canvas: #EEEEEE;
+  --color-canvas-subtle: #F7F7F7;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Flux Webflow Template Custom Utilities */
+body {
+  background-color: #EEEEEE;
+  color: #1E293B;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #EEEEEE;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D8D2CB;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #398AB9;
+}
+
+/* Print Optimization - Prevent Unwanted Blank Pages */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 8mm 8mm 8mm;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Prevent elements from creating blank trailing pages */
+  .print-page-clean {
+    min-height: auto !important;
+    max-height: none !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .print-break-after {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  .print-no-break-after {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  /* Prevent breaking inside tables and signature rows */
+  table, tr, td, th {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .signature-box, .official-footer {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}
+

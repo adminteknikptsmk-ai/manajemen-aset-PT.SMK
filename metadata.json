@@ -1,0 +1,6 @@
+{
+  "name": "PT. Sarana Multi Kalibrasi - Sistem Manajemen Aset & Penjadwalan Kalibrasi RS",
+  "description": "Sistem terpadu PT. Sarana Multi Kalibrasi untuk pengelolaan Surat Penawaran Harga (SPH), Surat Perintah Kerja (SPK), BAP, BASTP, peminjaman 6 tablet kalibrasi, inventaris kalibrator, dan penjadwalan kalibrasi RS berstandar Permenkes No. 54/2015.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

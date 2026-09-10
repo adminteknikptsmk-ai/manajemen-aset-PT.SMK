@@ -7,6 +7,15 @@ export interface SystemFieldDefinition {
   category: 'header' | 'hospital' | 'signee' | 'financial' | 'items' | 'execution';
 }
 
+export const KOP_SURAT_SYSTEM_FIELDS: SystemFieldDefinition[] = [
+  { key: 'companyName', label: 'Nama Perusahaan', example: 'PT. SARANA MULTI KALIBRASI', category: 'header' },
+  { key: 'labSubtitle', label: 'Sub-Judul Laboratorium', example: 'Laboratorium Kalibrasi Alat Kesehatan', category: 'header' },
+  { key: 'accreditationNo', label: 'Nomor Akreditasi KAN', example: 'LK-532-IDN', category: 'header' },
+  { key: 'hospitalName', label: 'Nama Rumah Sakit / Tujuan', example: 'RSUD Subang Sehat Mandiri', category: 'hospital' },
+  { key: 'date', label: 'Tanggal Surat', example: '07 September 2026', category: 'header' },
+  { key: 'city', label: 'Kota Asal Surat', example: 'Surakarta', category: 'header' }
+];
+
 export const SPH_SYSTEM_FIELDS: SystemFieldDefinition[] = [
   { key: 'sphNumber', label: 'Nomor Surat SPH', example: '045/SPH-SMK/III/2026', category: 'header' },
   { key: 'subject', label: 'Perihal Surat', example: 'Surat Penawaran Harga Kalibrasi Alat Kesehatan', category: 'header' },
@@ -48,6 +57,7 @@ export const SPK_SYSTEM_FIELDS: SystemFieldDefinition[] = [
 export const BAP_SYSTEM_FIELDS: SystemFieldDefinition[] = [
   { key: 'bapNumber', label: 'Nomor BAP', example: 'BAP-20260907-001', category: 'header' },
   { key: 'hospitalName', label: 'Nama Rumah Sakit', example: 'RSUD Subang Sehat Mandiri', category: 'hospital' },
+  { key: 'hospitalAddress', label: 'Alamat Rumah Sakit', example: 'Jl. Brigjen Katamso No. 12, Subang', category: 'hospital' },
   { key: 'hospitalCity', label: 'Kota RS', example: 'Subang', category: 'hospital' },
   { key: 'poContractNumber', label: 'Nomor Kontrak / PO', example: 'PO-RSUDSUBANG-2026-009', category: 'header' },
   { key: 'leadTechnicianName', label: 'Nama Lead Teknisi', example: 'Wahyu Tri Prabowo', category: 'execution' },
@@ -56,12 +66,15 @@ export const BAP_SYSTEM_FIELDS: SystemFieldDefinition[] = [
   { key: 'totalSisa', label: 'Sisa Belum Selesai', example: '0', category: 'items' },
   { key: 'laikPakaiCount', label: 'Jumlah Laik Pakai', example: '12', category: 'items' },
   { key: 'tidakLaikCount', label: 'Jumlah Tidak Laik', example: '0', category: 'items' },
-  { key: 'scheduledDate', label: 'Tanggal Pelaksanaan', example: '07 September 2026', category: 'execution' }
+  { key: 'scheduledDate', label: 'Tanggal Pelaksanaan', example: '07 September 2026', category: 'execution' },
+  { key: 'devices', label: 'Daftar Rincian Status Alat', example: 'Tabel status laik/tidak laik', category: 'items' }
 ];
 
 export const BASTP_SYSTEM_FIELDS: SystemFieldDefinition[] = [
   { key: 'hospitalName', label: 'Nama Rumah Sakit', example: 'RSUD Subang Sehat Mandiri', category: 'hospital' },
+  { key: 'hospitalAddress', label: 'Alamat Rumah Sakit', example: 'Jl. Brigjen Katamso No. 12, Subang', category: 'hospital' },
   { key: 'hospitalCity', label: 'Kota RS', example: 'Subang', category: 'hospital' },
+  { key: 'poContractNumber', label: 'Nomor Kontrak / PO', example: 'PO-RSUDSUBANG-2026-009', category: 'header' },
   { key: 'leadTechnicianName', label: 'Lead Teknisi Penguji', example: 'Wahyu Tri Prabowo', category: 'execution' },
   { key: 'scheduledDate', label: 'Tanggal Berita Acara', example: '07 September 2026', category: 'execution' },
   { key: 'devices', label: 'Daftar Hasil Kalibrasi Alat', example: 'Tabel sertifikat & status', category: 'items' }
@@ -69,6 +82,7 @@ export const BASTP_SYSTEM_FIELDS: SystemFieldDefinition[] = [
 
 export const getSystemFieldsForType = (type: TemplateDocType): SystemFieldDefinition[] => {
   switch (type) {
+    case 'kop_surat': return KOP_SURAT_SYSTEM_FIELDS;
     case 'sph': return SPH_SYSTEM_FIELDS;
     case 'spk': return SPK_SYSTEM_FIELDS;
     case 'bap': return BAP_SYSTEM_FIELDS;
@@ -81,14 +95,24 @@ export const getSystemFieldsForType = (type: TemplateDocType): SystemFieldDefini
  */
 export const getMockDataForType = (type: TemplateDocType) => {
   const commonDevices = [
-    { no: 1, name: 'Syringe Pump', description: 'Syringe Pump B.Braun Perfusor Space', labelNumber: 'SMK-2026-001', quantity: 2, unit: 'Unit', unitPrice: '450.000', totalPrice: '900.000', room: 'ICU', brandModel: 'B.Braun Perfusor Space', serialNumber: 'SN-BB98231', status: 'Laik Pakai', notes: 'Kondisi Baik' },
-    { no: 2, name: 'Infusion Pump', description: 'Infusion Pump Terumo TE-171', labelNumber: 'SMK-2026-002', quantity: 3, unit: 'Unit', unitPrice: '450.000', totalPrice: '1.350.000', room: 'Rawat Inap', brandModel: 'Terumo TE-171', serialNumber: 'SN-TR44120', status: 'Laik Pakai', notes: 'Kondisi Baik' },
-    { no: 3, name: 'Patient Monitor', description: 'Bedside Monitor Mindray BeneView T5', labelNumber: 'SMK-2026-003', quantity: 2, unit: 'Unit', unitPrice: '850.000', totalPrice: '1.700.000', room: 'IGD', brandModel: 'Mindray BeneView T5', serialNumber: 'SN-MR78119', status: 'Laik Pakai', notes: 'Kondisi Baik' },
-    { no: 4, name: 'Electrocardiograph (ECG)', description: 'ECG 12-Lead Fukuda Denshi FX-7102', labelNumber: 'SMK-2026-004', quantity: 1, unit: 'Unit', unitPrice: '750.000', totalPrice: '750.000', room: 'Poli Jantung', brandModel: 'Fukuda Denshi FX-7102', serialNumber: 'SN-FK33219', status: 'Laik Pakai', notes: 'Kondisi Baik' },
-    { no: 5, name: 'Defibrillator', description: 'Defibrillator Zoll M-Series Biphasic', labelNumber: 'SMK-2026-005', quantity: 1, unit: 'Unit', unitPrice: '1.100.000', totalPrice: '1.100.000', room: 'ICU', brandModel: 'Zoll M-Series', serialNumber: 'SN-ZL55102', status: 'Laik Pakai', notes: 'Kondisi Baik' }
+    { no: 1, name: 'Syringe Pump', description: 'Syringe Pump B.Braun Perfusor Space', labelNumber: '100.0001', quantity: 2, unit: 'Unit', unitPrice: '450.000', totalPrice: '900.000', room: 'ICU', brandModel: 'B.Braun Perfusor Space', serialNumber: 'SN-BB98231', status: 'Laik Pakai', notes: 'Kondisi Baik & Terkalibrasi' },
+    { no: 2, name: 'Infusion Pump', description: 'Infusion Pump Terumo TE-171', labelNumber: '100.0002', quantity: 3, unit: 'Unit', unitPrice: '450.000', totalPrice: '1.350.000', room: 'Rawat Inap', brandModel: 'Terumo TE-171', serialNumber: 'SN-TR44120', status: 'Laik Pakai', notes: 'Kondisi Baik & Terkalibrasi' },
+    { no: 3, name: 'Patient Monitor', description: 'Bedside Monitor Mindray BeneView T5', labelNumber: '100.0003', quantity: 2, unit: 'Unit', unitPrice: '850.000', totalPrice: '1.700.000', room: 'IGD', brandModel: 'Mindray BeneView T5', serialNumber: 'SN-MR78119', status: 'Laik Pakai', notes: 'Kondisi Baik & Terkalibrasi' },
+    { no: 4, name: 'Electrocardiograph (ECG)', description: 'ECG 12-Lead Fukuda Denshi FX-7102', labelNumber: '100.0004', quantity: 1, unit: 'Unit', unitPrice: '750.000', totalPrice: '750.000', room: 'Poli Jantung', brandModel: 'Fukuda Denshi FX-7102', serialNumber: 'SN-FK33219', status: 'Laik Pakai', notes: 'Kondisi Baik & Terkalibrasi' },
+    { no: 5, name: 'Defibrillator', description: 'Defibrillator Zoll M-Series Biphasic', labelNumber: '100.0005', quantity: 1, unit: 'Unit', unitPrice: '1.100.000', totalPrice: '1.100.000', room: 'ICU', brandModel: 'Zoll M-Series', serialNumber: 'SN-ZL55102', status: 'Laik Pakai', notes: 'Kondisi Baik & Terkalibrasi' }
   ];
 
   switch (type) {
+    case 'kop_surat':
+      return {
+        companyName: 'PT. SARANA MULTI KALIBRASI',
+        labSubtitle: 'Laboratorium Kalibrasi Alat Kesehatan',
+        accreditationNo: 'LK-532-IDN',
+        hospitalName: 'RSUD Subang Sehat Mandiri',
+        date: '07 September 2026',
+        city: 'Surakarta'
+      };
+
     case 'sph':
       return {
         sphNumber: '045/SPH-SMK/III/2026',
@@ -117,7 +141,7 @@ export const getMockDataForType = (type: TemplateDocType) => {
         hospitalName: 'RSUD Subang Sehat Mandiri',
         hospitalAddress: 'Jl. Brigjen Katamso No. 12, Dangdeur, Subang, Jawa Barat',
         hospitalCity: 'Subang, Jawa Barat',
-        hospitalPic: 'dr. H. Hendrawan, Sp.A',
+        hospitalPic: 'dr. H. Hendrawan, Sp.A (0812-9988-7766)',
         hospitalPhone: '0260-411234',
         poContractNumber: 'PO-RSUDSUBANG-2026-009',
         poDateFormatted: '05 September 2026',
@@ -125,11 +149,7 @@ export const getMockDataForType = (type: TemplateDocType) => {
         scheduledDate: '07 September 2026',
         endDate: '09 September 2026',
         contractValue: 'Rp 18.500.000',
-        totalVolumePO: '9',
-        totalRealisasi: '9',
-        totalSisa: '0',
-        laikPakaiCount: '9',
-        tidakLaikCount: '0',
+        totalVolumePO: '12',
         devices: commonDevices
       };
 
@@ -137,13 +157,14 @@ export const getMockDataForType = (type: TemplateDocType) => {
       return {
         bapNumber: 'BAP-20260907-001',
         hospitalName: 'RSUD Subang Sehat Mandiri',
+        hospitalAddress: 'Jl. Brigjen Katamso No. 12, Dangdeur, Subang, Jawa Barat',
         hospitalCity: 'Subang',
         poContractNumber: 'PO-RSUDSUBANG-2026-009',
         leadTechnicianName: 'Wahyu Tri Prabowo',
-        totalVolumePO: '9',
-        totalRealisasi: '9',
+        totalVolumePO: '12',
+        totalRealisasi: '12',
         totalSisa: '0',
-        laikPakaiCount: '9',
+        laikPakaiCount: '12',
         tidakLaikCount: '0',
         scheduledDate: '07 September 2026',
         devices: commonDevices
@@ -152,7 +173,9 @@ export const getMockDataForType = (type: TemplateDocType) => {
     case 'bastp':
       return {
         hospitalName: 'RSUD Subang Sehat Mandiri',
+        hospitalAddress: 'Jl. Brigjen Katamso No. 12, Dangdeur, Subang, Jawa Barat',
         hospitalCity: 'Subang',
+        poContractNumber: 'PO-RSUDSUBANG-2026-009',
         leadTechnicianName: 'Wahyu Tri Prabowo',
         scheduledDate: '07 September 2026',
         devices: commonDevices

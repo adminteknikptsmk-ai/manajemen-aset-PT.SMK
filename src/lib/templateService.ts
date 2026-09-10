@@ -2,7 +2,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
-export type TemplateDocType = 'sph' | 'spk' | 'bap' | 'bastp';
+export type TemplateDocType = 'sph' | 'spk' | 'bap' | 'bastp' | 'kop_surat';
 
 export interface TemplateVersion {
   id: string;
@@ -10,7 +10,7 @@ export interface TemplateVersion {
   name: string;
   fileUrl: string;
   fileName: string;
-  fileType: 'pdf' | 'docx';
+  fileType: 'pdf' | 'docx' | 'xlsx';
   uploadedAt: string;
   uploadedBy?: string;
   notes?: string;
@@ -22,7 +22,7 @@ export interface DocumentTypeConfig {
   activeVersionId: string | null;
   activeUrl: string | null;
   activeFileName: string | null;
-  activeFileType: 'pdf' | 'docx';
+  activeFileType: 'pdf' | 'docx' | 'xlsx';
   mappings: Record<string, string>;
   versions: TemplateVersion[];
 }
@@ -32,6 +32,7 @@ export interface DocumentTemplatesConfig {
   spk: DocumentTypeConfig;
   bap: DocumentTypeConfig;
   bastp: DocumentTypeConfig;
+  kop_surat: DocumentTypeConfig;
 }
 
 export interface LegacyDocumentTemplates {
@@ -39,6 +40,7 @@ export interface LegacyDocumentTemplates {
   spk: string | null;
   bap: string | null;
   bastp: string | null;
+  kop_surat?: string | null;
 }
 
 const TEMPLATES_DOC_ID = 'document_templates';
@@ -53,8 +55,8 @@ export async function createSamplePdfBase64(docTypeTitle: string, versionTitle: 
 
     // KOP SURAT RESMI
     page.drawText('PT. SARANA MULTI KALIBRASI', { x: 50, y: 790, size: 15, font: fontBold, color: rgb(0.11, 0.40, 0.55) });
-    page.drawText('Laboratorium Uji & Kalibrasi Fasilitas Kesehatan • Kemenkes RI & KAN LK-012-IDN', { x: 50, y: 772, size: 8.5, font: fontRegular, color: rgb(0.3, 0.3, 0.3) });
-    page.drawText('Jl. Kalibrasi Nasional No. 12, Surakarta | Telp: (0271) 712891 | info@saranamultikalibrasi.co.id', { x: 50, y: 760, size: 7.5, font: fontRegular, color: rgb(0.4, 0.4, 0.4) });
+    page.drawText('Laboratorium Uji & Kalibrasi Fasilitas Kesehatan • Kemenkes RI & KAN LK-532-IDN', { x: 50, y: 772, size: 8.5, font: fontRegular, color: rgb(0.3, 0.3, 0.3) });
+    page.drawText('Jl. Kenari 3 No. A3, Ngipang RT 005/017 Kadipiro Banjarsari Surakarta | info@ptsaranamultikalibrasi.com', { x: 50, y: 760, size: 7.5, font: fontRegular, color: rgb(0.4, 0.4, 0.4) });
     page.drawLine({ start: { x: 50, y: 752 }, end: { x: 545, y: 752 }, thickness: 2, color: rgb(0.11, 0.40, 0.55) });
     page.drawLine({ start: { x: 50, y: 749 }, end: { x: 545, y: 749 }, thickness: 0.5, color: rgb(0.11, 0.40, 0.55) });
 
@@ -74,7 +76,7 @@ export async function createSamplePdfBase64(docTypeTitle: string, versionTitle: 
     page.drawRectangle({ x: 50, y: 440, width: 495, height: 90, color: rgb(0.97, 0.98, 0.99), borderColor: rgb(0.8, 0.85, 0.9), borderWidth: 1 });
     page.drawText('TABEL RINCIAN PENGUJIAN / KALIBRASI PERALATAN MEDIS', { x: 60, y: 512, size: 8.5, font: fontBold, color: rgb(0.11, 0.40, 0.55) });
     page.drawText('• Baris 1: Alat Medis Radiologi / Terapi / ICU / Laboratorium Teruji', { x: 65, y: 492, size: 8.5, font: fontRegular, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText('• Status Kelaikan Fisik & Kalibrasi Sesuai Standar KAN LK-012-IDN', { x: 65, y: 474, size: 8.5, font: fontRegular, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText('• Status Kelaikan Fisik & Kalibrasi Sesuai Standar KAN LK-532-IDN', { x: 65, y: 474, size: 8.5, font: fontRegular, color: rgb(0.2, 0.2, 0.2) });
     page.drawText('• Daftar Alokasi Kalibrator Acuan & Tablet Digitalisasi Lapangan', { x: 65, y: 456, size: 8.5, font: fontRegular, color: rgb(0.2, 0.2, 0.2) });
 
     // SIGNATURE AREA
@@ -97,36 +99,83 @@ export async function createSamplePdfBase64(docTypeTitle: string, versionTitle: 
   }
 }
 
+// Generate Blank A4 Letterhead (Kop Surat) PDF
+export async function createSampleLetterheadPdfBase64(): Promise<string> {
+  try {
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([595.28, 841.89]); // A4 portrait
+    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+    // KOP SURAT ATAS
+    page.drawText('PT. SARANA MULTI KALIBRASI', { x: 50, y: 795, size: 16, font: fontBold, color: rgb(0.11, 0.40, 0.55) });
+    page.drawText('Laboratorium Kalibrasi Alat Kesehatan • Akreditasi KAN LK-532-IDN', { x: 50, y: 776, size: 9, font: fontBold, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText('Izin Operasional Kemenkes RI No: 26062301565850001', { x: 50, y: 763, size: 8, font: fontRegular, color: rgb(0.35, 0.35, 0.35) });
+    page.drawText('Kantor & Laboratorium: Jl. Kenari 3 No. A3, Ngipang RT 005/ RW 017, Kadipiro, Banjarsari, Kota Surakarta', { x: 50, y: 750, size: 7.5, font: fontRegular, color: rgb(0.4, 0.4, 0.4) });
+    page.drawText('Hotline / WA: (0851) 1234570 | Telp: (0271) 2023035 | Email: ptsaranamultikalibrasi@gmail.com', { x: 50, y: 738, size: 7.5, font: fontRegular, color: rgb(0.4, 0.4, 0.4) });
+
+    page.drawLine({ start: { x: 50, y: 728 }, end: { x: 545, y: 728 }, thickness: 2, color: rgb(0.11, 0.40, 0.55) });
+    page.drawLine({ start: { x: 50, y: 724 }, end: { x: 545, y: 724 }, thickness: 0.5, color: rgb(0.11, 0.40, 0.55) });
+
+    // FOOTER KOP BAWAH
+    page.drawLine({ start: { x: 50, y: 55 }, end: { x: 545, y: 55 }, thickness: 0.8, color: rgb(0.7, 0.7, 0.7) });
+    page.drawText('PT. SARANA MULTI KALIBRASI • Lembaga Inspeksi & Kalibrasi Fasilitas Pelayanan Kesehatan Indonesia', { x: 50, y: 42, size: 7.5, font: fontRegular, color: rgb(0.5, 0.5, 0.5) });
+    page.drawText('www.saranamultikalibrasi.com | Kemenkes RI & Komite Akreditasi Nasional (KAN)', { x: 50, y: 32, size: 7.5, font: fontRegular, color: rgb(0.5, 0.5, 0.5) });
+
+    const bytes = await pdfDoc.save();
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return `data:application/pdf;base64,${btoa(binary)}`;
+  } catch (err) {
+    console.error('Error creating base64 letterhead PDF:', err);
+    return '';
+  }
+}
+
 // Built-in seed versions so users immediately have multiple versions to switch between
 const createSeedVersions = (type: TemplateDocType): TemplateVersion[] => {
-  const configs: Record<TemplateDocType, { v1Name: string; v2Name: string; v1Notes: string; v2Notes: string; docTitle: string }> = {
+  const configs: Record<TemplateDocType, { v1Name: string; v2Name: string; v1Notes: string; v2Notes: string; docTitle: string; defaultFileType: 'pdf' | 'docx' | 'xlsx' }> = {
+    kop_surat: {
+      docTitle: 'Kop Surat Resmi (Kertas Kosongan A4)',
+      v1Name: 'Kop Surat A4 Resmi PT. SMK (Kemenkes & KAN)',
+      v2Name: 'Kop Surat Standar A4 Khusus SPH & SPK',
+      v1Notes: 'Kertas A4 kosong dengan Kop & Footer resmi PT. Sarana Multi Kalibrasi untuk penempatan isi dokumen SPH/SPK.',
+      v2Notes: 'Format template kop surat A4 siap pakai untuk pencetakan dokumen resmi.',
+      defaultFileType: 'pdf'
+    },
     sph: {
       docTitle: 'Surat Penawaran Harga (SPH) Kalibrasi',
       v1Name: 'Versi 1.0 (Standar Kemenkes RI)',
-      v2Name: 'Versi 2.0 (Format Akreditasi KAN LK-012-IDN)',
+      v2Name: 'Versi 2.0 (Format Akreditasi KAN LK-532-IDN)',
       v1Notes: 'Format baku penawaran harga 2 halaman sesuai regulasi Ditjen Nakes.',
-      v2Notes: 'Pembaruan kop surat resmi KAN LK-012, klausul PPN 11%, dan rincian akomodasi.'
+      v2Notes: 'Pembaruan kop surat resmi KAN LK-532, klausul PPN 11%, dan rincian akomodasi.',
+      defaultFileType: 'pdf'
     },
     spk: {
       docTitle: 'Surat Perintah Kerja (SPK) Kalibrasi',
       v1Name: 'Versi 1.0 (SPK Reguler Lapangan)',
       v2Name: 'Versi 2.0 (SPK Terpadu Kalibrator & Tablet)',
       v1Notes: 'Format surat tugas awal untuk penugasan tim elektromedis ke rumah sakit.',
-      v2Notes: 'Integrasi nomor seri master kalibrator dan unit tablet teknisi lapangan.'
+      v2Notes: 'Integrasi nomor seri master kalibrator dan unit tablet teknisi lapangan.',
+      defaultFileType: 'pdf'
     },
     bap: {
       docTitle: 'Berita Acara Pekerjaan (BAP) Kalibrasi',
-      v1Name: 'Versi 1.0 (BAP Pengujian Standar)',
-      v2Name: 'Versi 2.0 (BAP Laik Pakai ISO 17025)',
-      v1Notes: 'Format berita acara pekerjaan kalibrasi standar rumah sakit.',
-      v2Notes: 'Pembaruan kolom status alat laik/tidak laik pakai dan paraf saksi faskes.'
+      v1Name: 'Versi 1.0 (BAP Excel Template .xlsx)',
+      v2Name: 'Versi 2.0 (BAP Pengujian Standar PDF)',
+      v1Notes: 'Format template Excel (.xlsx) Berita Acara Pekerjaan dengan ekspor PDF otomatis.',
+      v2Notes: 'Format berita acara pekerjaan kalibrasi standar rumah sakit dengan tabel realisasi.',
+      defaultFileType: 'xlsx'
     },
     bastp: {
       docTitle: 'Berita Acara Serah Terima Pekerjaan & Sertifikat (BASTP)',
-      v1Name: 'Versi 1.0 (BASTP Fisik Standar)',
+      v1Name: 'Versi 1.0 (BASTP Excel Template .xlsx)',
       v2Name: 'Versi 2.0 (BASTP Digital & Barcode KAN)',
-      v1Notes: 'Format serah terima fisik sertifikat kalibrasi dan stiker kelaikan.',
-      v2Notes: 'Integrasi validasi barcode digital sertifikat dan stempel resmi Kemenkes RI.'
+      v1Notes: 'Format template Excel (.xlsx) serah terima fisik sertifikat & stiker kelaikan.',
+      v2Notes: 'Integrasi validasi barcode digital sertifikat dan stempel resmi Kemenkes RI.',
+      defaultFileType: 'xlsx'
     }
   };
 
@@ -138,8 +187,8 @@ const createSeedVersions = (type: TemplateDocType): TemplateVersion[] => {
     versionNumber: 1,
     name: c.v1Name,
     fileUrl: dummyPdfData,
-    fileName: `${type.toUpperCase()}_Standar_v1.pdf`,
-    fileType: 'pdf',
+    fileName: `${type.toUpperCase()}_Standar_v1.${c.defaultFileType}`,
+    fileType: c.defaultFileType,
     uploadedAt: '2025-11-15T09:30:00Z',
     uploadedBy: 'Admin Metrologi PT SMK',
     notes: c.v1Notes,
@@ -189,13 +238,14 @@ const defaultTypeConfig = (type: TemplateDocType): DocumentTypeConfig => {
     activeVersionId: activeVer.id,
     activeUrl: activeVer.fileUrl,
     activeFileName: activeVer.fileName,
-    activeFileType: 'pdf',
+    activeFileType: activeVer.fileType,
     mappings: activeVer.mappings,
     versions: versions
   };
 };
 
 export const getDefaultTemplatesConfig = (): DocumentTemplatesConfig => ({
+  kop_surat: defaultTypeConfig('kop_surat'),
   sph: defaultTypeConfig('sph'),
   spk: defaultTypeConfig('spk'),
   bap: defaultTypeConfig('bap'),
@@ -209,11 +259,11 @@ export const getFullTemplatesConfig = async (): Promise<DocumentTemplatesConfig>
   try {
     const docRef = doc(db, 'settings', TEMPLATES_DOC_ID);
     const docSnap = await getDoc(docRef);
+    const config = getDefaultTemplatesConfig();
+
     if (docSnap.exists()) {
       const data = docSnap.data();
-      const config = getDefaultTemplatesConfig();
-      
-      const types: TemplateDocType[] = ['sph', 'spk', 'bap', 'bastp'];
+      const types: TemplateDocType[] = ['kop_surat', 'sph', 'spk', 'bap', 'bastp'];
       types.forEach(type => {
         if (data[`config_${type}`]) {
           config[type] = {
@@ -221,7 +271,6 @@ export const getFullTemplatesConfig = async (): Promise<DocumentTemplatesConfig>
             ...data[`config_${type}`]
           };
         } else if (data[type]) {
-          // Migrate legacy format if exists
           const legacyUrl = data[type];
           const legacyVersion: TemplateVersion = {
             id: `v1_legacy`,
@@ -229,7 +278,7 @@ export const getFullTemplatesConfig = async (): Promise<DocumentTemplatesConfig>
             name: 'Template Awal (Migrasi)',
             fileUrl: legacyUrl,
             fileName: legacyUrl.split('/').pop()?.split('?')[0] || `${type}-template.pdf`,
-            fileType: legacyUrl.toLowerCase().includes('.docx') ? 'docx' : 'pdf',
+            fileType: legacyUrl.toLowerCase().includes('.xlsx') ? 'xlsx' : legacyUrl.toLowerCase().includes('.docx') ? 'docx' : 'pdf',
             uploadedAt: new Date().toISOString(),
             mappings: {},
             detectedPlaceholders: []
@@ -246,7 +295,7 @@ export const getFullTemplatesConfig = async (): Promise<DocumentTemplatesConfig>
       });
       return config;
     }
-    return getDefaultTemplatesConfig();
+    return config;
   } catch (error) {
     console.error("Error fetching template config:", error);
     return getDefaultTemplatesConfig();
@@ -259,6 +308,7 @@ export const getFullTemplatesConfig = async (): Promise<DocumentTemplatesConfig>
 export const getTemplates = async (): Promise<LegacyDocumentTemplates> => {
   const full = await getFullTemplatesConfig();
   return {
+    kop_surat: full.kop_surat.activeUrl,
     sph: full.sph.activeUrl,
     spk: full.spk.activeUrl,
     bap: full.bap.activeUrl,
@@ -273,24 +323,23 @@ export const saveNewTemplateVersion = async (
   type: TemplateDocType,
   fileUrl: string,
   fileName: string,
-  fileType: 'pdf' | 'docx',
+  fileType: 'pdf' | 'docx' | 'xlsx',
   notes: string = '',
   detectedPlaceholders: string[] = [],
   customName?: string
 ): Promise<TemplateVersion> => {
   try {
     const currentConfig = await getFullTemplatesConfig();
-    const typeConfig = currentConfig[type];
+    const typeConfig = currentConfig[type] || defaultTypeConfig(type);
     
-    const nextVersionNumber = (typeConfig.versions.length > 0)
+    const nextVersionNumber = (typeConfig.versions && typeConfig.versions.length > 0)
       ? Math.max(...typeConfig.versions.map(v => v.versionNumber || 1)) + 1
       : 1;
 
     const newVersionId = `v${nextVersionNumber}_${Date.now()}`;
     const newVersionName = customName || `Versi ${nextVersionNumber} (${fileName})`;
 
-    // Default initial mappings based on detected placeholders matching system fields
-    const initialMappings: Record<string, string> = { ...typeConfig.mappings };
+    const initialMappings: Record<string, string> = { ...(typeConfig.mappings || {}) };
     detectedPlaceholders.forEach(token => {
       const cleanToken = token.replace(/[{}]/g, '').trim();
       if (!initialMappings[token]) {
@@ -311,7 +360,7 @@ export const saveNewTemplateVersion = async (
       detectedPlaceholders
     };
 
-    const updatedVersions = [newVersion, ...typeConfig.versions];
+    const updatedVersions = [newVersion, ...(typeConfig.versions || [])];
 
     const updatedTypeConfig: DocumentTypeConfig = {
       activeVersionId: newVersionId,
@@ -360,7 +409,7 @@ export const setActiveTemplateVersion = async (
 
     const docRef = doc(db, 'settings', TEMPLATES_DOC_ID);
     await setDoc(docRef, {
-      [type]: targetVersion.fileUrl, // legacy compatibility
+      [type]: targetVersion.fileUrl,
       [`config_${type}`]: updatedTypeConfig
     }, { merge: true });
   } catch (error) {
@@ -435,8 +484,7 @@ export const saveTemplateMappings = async (
     const currentConfig = await getFullTemplatesConfig();
     const typeConfig = currentConfig[type];
 
-    // Also update mapping in the active version
-    const updatedVersions = typeConfig.versions.map(v => {
+    const updatedVersions = (typeConfig.versions || []).map(v => {
       if (v.id === typeConfig.activeVersionId) {
         return { ...v, mappings };
       }
@@ -465,11 +513,11 @@ export const saveTemplateMappings = async (
 export const saveTemplate = async (type: TemplateDocType, url: string | null) => {
   if (!url) {
     const current = await getFullTemplatesConfig();
-    const active = current[type].activeVersionId;
+    const active = current[type]?.activeVersionId;
     if (active) await deleteTemplateVersion(type, active);
     return;
   }
   const fileName = url.split('/').pop()?.split('?')[0] || `${type}-template.pdf`;
-  const fileType = url.toLowerCase().includes('.docx') ? 'docx' : 'pdf';
+  const fileType = url.toLowerCase().includes('.xlsx') ? 'xlsx' : url.toLowerCase().includes('.docx') ? 'docx' : 'pdf';
   await saveNewTemplateVersion(type, url, fileName, fileType, 'Versi Unggahan Baru');
 };

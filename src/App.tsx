@@ -20,6 +20,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   CalibrationSchedule, 
   CalibratorAsset, 
+  CalibratorLoan,
   FinancialAsset, 
   FinancialTransaction, 
   Hospital, 
@@ -755,6 +756,11 @@ export default function App() {
               transition={{ duration: 0.2 }}
             >
               <MasterHospitalAndTech
+                schedules={schedules}
+                onUpdateSchedule={(sch) => {
+                  updateSchedule(sch);
+                  showToast('Update perkembangan selia berhasil disimpan!');
+                }}
                 hospitals={hospitals}
                 technicians={technicians}
                 marketingList={marketingList}

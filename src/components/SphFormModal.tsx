@@ -780,16 +780,16 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
                       : 'Penawaran tidak disepakati atau dibatalkan oleh rumah sakit.'}
                   </p>
                   
-                  {initialSph?.id && (
-                    <div className="mt-4 pt-4 border-t border-[#D8D2CB]">
-                      <PdfUploader 
-                        folder="sph"
-                        documentId={initialSph.id}
-                        existingPdfUrl={pdfUrl}
-                        onUploadSuccess={setPdfUrl}
-                      />
-                    </div>
-                  )}
+                  <div className="mt-4 pt-4 border-t border-[#D8D2CB]">
+                    <PdfUploader 
+                      folder="sph"
+                      documentId={initialSph?.id || sphNumber.replace(/[^a-zA-Z0-9_-]/g, '_') || `sph_${Date.now()}`}
+                      existingPdfUrl={pdfUrl}
+                      label="Upload Lampiran SPH / Dokumen Terkirim (PDF / Scan)"
+                      onUploadSuccess={setPdfUrl}
+                      onRemove={() => setPdfUrl(undefined)}
+                    />
+                  </div>
                 </div>
               </div>
 

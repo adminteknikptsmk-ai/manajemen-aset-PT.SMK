@@ -1,16 +1,26 @@
 import React, { useState } from 'react';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../firebase/config';
-import { UploadCloud, FileText, CheckCircle2, Loader2, X } from 'lucide-react';
+import { uploadFile } from '../lib/storageHelper';
+import { UploadCloud, FileText, CheckCircle2, Loader2, X, Eye, Trash2, FileSpreadsheet, Image as ImageIcon } from 'lucide-react';
 
 interface PdfUploaderProps {
-  folder: 'sph' | 'spk';
+  folder: string;
   documentId: string;
   existingPdfUrl?: string;
   onUploadSuccess: (url: string) => void;
+  onRemove?: () => void;
+  label?: string;
+  acceptTypes?: string;
 }
 
-export const PdfUploader: React.FC<PdfUploaderProps> = ({ folder, documentId, existingPdfUrl, onUploadSuccess }) => {
+export const PdfUploader: React.FC<PdfUploaderProps> = ({ 
+  folder, 
+  documentId, 
+  existingPdfUrl, 
+  onUploadSuccess,
+  onRemove,
+  label = "Dokumen Scan / Lampiran PDF",
+  acceptTypes = ".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,application/pdf,image/*"
+}) => {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,13 +28,9 @@ export const PdfUploader: React.FC<PdfUploaderProps> = ({ folder, documentId, ex
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.type !== 'application/pdf') {
-      setError('Hanya file PDF yang diizinkan');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Ukuran file maksimal 5MB');
+    // Size limit check (15MB)
+    if (file.size > 15 * 1024 * 1024) {
+      setError('Ukuran file maksimal 15MB');
       return;
     }
 
@@ -32,13 +38,12 @@ export const PdfUploader: React.FC<PdfUploaderProps> = ({ folder, documentId, ex
     setError(null);
 
     try {
-      const storageRef = ref(storage, `${folder}/${documentId}-${Date.now()}.pdf`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
+      const folderPath = `${folder}/${documentId}`;
+      const url = await uploadFile(file, folderPath);
       onUploadSuccess(url);
     } catch (err) {
-      console.error('Error uploading PDF:', err);
-      setError('Gagal mengunggah file');
+      console.error('Error uploading document file:', err);
+      setError('Gagal mengunggah file. Silakan coba file lain.');
     } finally {
       setUploading(false);
       // Reset input
@@ -46,48 +51,88 @@ export const PdfUploader: React.FC<PdfUploaderProps> = ({ folder, documentId, ex
     }
   };
 
+  const isImage = existingPdfUrl?.startsWith('data:image/') || 
+    existingPdfUrl?.match(/\.(jpeg|jpg|png|gif|webp)$/i);
+
   return (
-    <div className="mt-4 p-4 border border-[#D8D2CB] rounded-xl bg-white flex flex-col items-start w-full">
-      <div className="flex items-center gap-2 mb-3">
-        <FileText className="w-5 h-5 text-[#398AB9]" />
-        <h4 className="font-semibold text-[#1C658C] text-sm">Dokumen Scan PDF</h4>
+    <div className="mt-2 p-3 border border-slate-700/80 rounded-xl bg-slate-900/90 flex flex-col items-start w-full text-xs text-slate-200 shadow-sm">
+      <div className="flex items-center justify-between w-full mb-2">
+        <div className="flex items-center gap-1.5 font-bold text-cyan-300">
+          {isImage ? <ImageIcon className="w-4 h-4 text-cyan-400" /> : <FileText className="w-4 h-4 text-cyan-400" />}
+          <span>{label}</span>
+        </div>
+        {existingPdfUrl && onRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 p-1 rounded-md transition-all flex items-center gap-1 text-[11px]"
+            title="Hapus file lampiran"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Hapus</span>
+          </button>
+        )}
       </div>
       
       {existingPdfUrl ? (
-        <div className="flex items-center justify-between w-full p-3 bg-[#EEEEEE]/50 rounded-lg border border-[#D8D2CB]/50">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full p-2.5 bg-slate-950/80 rounded-lg border border-slate-800 gap-2">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-            <span className="text-sm font-medium text-slate-700">PDF Terlampir</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div className="truncate max-w-[180px] sm:max-w-xs">
+              <span className="text-xs font-semibold text-emerald-300 block truncate">Dokumen/Scan Terlampir</span>
+              <span className="text-[10px] text-slate-400 font-mono block">Format siap cetak / buka</span>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <a href={existingPdfUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-[#1C658C] hover:underline">
-              Lihat Dokumen
+
+          <div className="flex items-center gap-2 shrink-0">
+            <a 
+              href={existingPdfUrl} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="px-2.5 py-1 bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/30 rounded-lg text-xs font-bold transition-all flex items-center gap-1"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>Buka File</span>
             </a>
-            <label className="text-xs font-semibold text-[#398AB9] hover:underline cursor-pointer">
-              Ganti File
-              <input type="file" accept="application/pdf" className="hidden" onChange={handleFileChange} disabled={uploading} />
+
+            <label className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-bold cursor-pointer transition-all">
+              <span>Ganti</span>
+              <input 
+                type="file" 
+                accept={acceptTypes} 
+                className="hidden" 
+                onChange={handleFileChange} 
+                disabled={uploading} 
+              />
             </label>
           </div>
         </div>
       ) : (
-        <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-[#398AB9]/40 rounded-xl cursor-pointer hover:bg-[#EEEEEE]/50 transition-colors relative">
-          <input type="file" accept="application/pdf" className="hidden" onChange={handleFileChange} disabled={uploading} />
+        <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-cyan-500/30 hover:border-cyan-400 rounded-xl cursor-pointer bg-slate-950/50 hover:bg-slate-950 transition-colors relative">
+          <input 
+            type="file" 
+            accept={acceptTypes} 
+            className="hidden" 
+            onChange={handleFileChange} 
+            disabled={uploading} 
+          />
           {uploading ? (
-            <div className="flex flex-col items-center text-[#398AB9]">
-              <Loader2 className="w-6 h-6 animate-spin mb-1" />
-              <span className="text-xs font-medium">Mengunggah...</span>
+            <div className="flex flex-col items-center text-cyan-400">
+              <Loader2 className="w-5 h-5 animate-spin mb-1" />
+              <span className="text-xs font-medium">Mengunggah file ke server...</span>
             </div>
           ) : (
-            <div className="flex flex-col items-center text-slate-500">
-              <UploadCloud className="w-6 h-6 mb-1 text-[#398AB9]" />
-              <span className="text-xs font-medium">Klik untuk upload file PDF (Maks. 5MB)</span>
+            <div className="flex flex-col items-center text-slate-400">
+              <UploadCloud className="w-5 h-5 mb-1 text-cyan-400" />
+              <span className="text-xs font-medium text-slate-300">Klik untuk upload SPH / Kop Surat / BAP / BASTP</span>
+              <span className="text-[10px] text-slate-500">(PDF, JPG, PNG, DOCX, XLSX - Maks 15MB)</span>
             </div>
           )}
         </label>
       )}
 
       {error && (
-        <div className="flex items-center gap-1.5 mt-2 text-rose-500 text-xs font-medium">
+        <div className="flex items-center gap-1.5 mt-2 text-rose-400 text-xs font-medium">
           <X className="w-3.5 h-3.5" />
           {error}
         </div>

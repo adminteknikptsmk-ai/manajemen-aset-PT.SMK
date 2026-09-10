@@ -32,6 +32,24 @@ export type AuditStatus =
   | 'Lolos Audit'
   | 'Perlu Klarifikasi';
 
+export type SeliaStatus = 'Belum Diselia' | 'Sedang Proses Selia' | 'Sudah Cetak Sertifikat';
+
+export interface DeviceSeliaItem {
+  id: string;               // e.g. "selia-100.0001-1"
+  unitNo: number;           // Nomor urut 1..N (e.g. 1 s/d 27)
+  parentDeviceId: string;   // ID dari MedicalDeviceToCalibrate
+  deviceName: string;       // e.g. "Syringe Pump"
+  unitTitle: string;        // e.g. "Syringe Pump (Unit #1)"
+  brandModel: string;
+  serialNumber: string;
+  labelNumber?: string;     // e.g. "100.0001"
+  room: string;
+  testStatus: string;       // "Laik Pakai / Sudah Lulus Kalibrasi"
+  seliaStatus: SeliaStatus; // 'Belum Diselia' | 'Sedang Proses Selia' | 'Sudah Cetak Sertifikat'
+  keterangan: string;       // Kolom keterangan bebas
+  updatedAt?: string;
+}
+
 export interface MedicalDeviceToCalibrate {
   id: string;
   name: string;
@@ -93,6 +111,7 @@ export interface CalibrationSchedule {
   approvedByName?: string;     // Hafizh Pasifianto, S.Tr.T.
   approvedByRole?: string;     // Manajer Teknik PT. Sarana Multi Kalibrasi
   mtSignatureUrl?: string;     // TTD Manajer Teknik
+  seliaItems?: DeviceSeliaItem[]; // Itemized 1-by-1 unit tracking for review & certificates
 }
 
 export interface CalibratorAsset {
@@ -113,6 +132,9 @@ export interface CalibratorAsset {
   condition: CalibratorCondition;
   location: string;
   currentHolderTechnician?: string;
+  isAvailable?: boolean;          // Status ketersediaan alat (Tersedia / Dipinjam)
+  currentLoanId?: string;
+  currentBorrower?: string;
   traceability?: string;          // e.g. LK-110-IDN / LK-242-IDN / LK-032-IDN
   priceRange?: string;            // e.g. Rp 80 Juta - Rp 150 Juta
   usedForDeviceCount?: string;    // e.g. 72 alat
@@ -122,6 +144,27 @@ export interface CalibratorAsset {
     cost: number;
     performedBy: string;
   }[];
+}
+
+export interface CalibratorLoan {
+  id: string;               // e.g. 'CL-2026-001'
+  loanNumber: string;       // e.g. '001/CAL-LOAN/IX/2026'
+  no: number;               // Nomor urut
+  calibratorId: string;     // 'CAL-001'
+  calibratorCode: string;   // 'CAL-001'
+  calibratorName: string;   // 'Fluke ESA620 Electrical Safety Analyzer'
+  borrowerName: string;     // Nama peminjam
+  borrowerRole?: string;    // Teknisi Elektromedis
+  borrowDate: string;       // YYYY-MM-DD
+  purpose: string;          // Keperluan peminjaman / Kalibrasi On-Site RS
+  duration: string;         // Lama peminjaman
+  expectedReturnDate?: string;
+  actualReturnDate?: string;
+  notes: string;            // Keterangan / kelengkapan aksesoris & kabel probe
+  status: 'Dipinjam' | 'Dikembalikan';
+  returnedCondition?: string;
+  approverName?: string;    // PIC Lab / Penanggung Jawab
+  createdAt: string;
 }
 
 export interface FinancialAsset {

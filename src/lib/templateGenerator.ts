@@ -3,6 +3,7 @@ import Docxtemplater from 'docxtemplater';
 import { saveAs } from 'file-saver';
 import { PDFDocument, PDFRawStream } from 'pdf-lib';
 import pako from 'pako';
+import { fillExcelTemplate, convertExcelToPdfBytes, extractPlaceholdersFromExcel } from './excelTemplateService';
 
 /**
  * Downloads a file as an array buffer.
@@ -42,6 +43,17 @@ function hexToText(hex: string): string {
     str += String.fromCharCode(parseInt(hex.substr(i, 2), 16));
   }
   return str;
+}
+
+/**
+ * Extracts placeholders from an uploaded PDF or Excel template.
+ */
+export async function extractPlaceholdersFromTemplate(arrayBuffer: ArrayBuffer, fileName: string = ''): Promise<string[]> {
+  const isExcel = fileName.toLowerCase().endsWith('.xlsx') || fileName.toLowerCase().endsWith('.xls');
+  if (isExcel) {
+    return extractPlaceholdersFromExcel(arrayBuffer);
+  }
+  return extractPlaceholdersFromPdf(arrayBuffer);
 }
 
 /**
@@ -164,14 +176,42 @@ function buildReplacementDictionary(data: Record<string, any>, mappings?: Record
 
 /**
  * Injects data into a PDF template using AcroForm filling and stream search-and-replace.
+ * Also supports overlaying onto uploaded Kop Surat (blank A4 letterhead).
  */
 export async function searchAndReplaceInPdf(
   arrayBuffer: ArrayBuffer,
   data: Record<string, any>,
   mappings?: Record<string, string>,
-  signatureDataUrl?: string
+  signatureDataUrl?: string,
+  letterheadUrl?: string | null
 ): Promise<Uint8Array> {
-  const pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+  let pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+
+  // If a custom Kop Surat letterhead is configured, blend it behind page 1
+  if (letterheadUrl) {
+    try {
+      const lhBuffer = await fetchFile(letterheadUrl);
+      const lhDoc = await PDFDocument.load(lhBuffer, { ignoreEncryption: true });
+      if (lhDoc.getPageCount() > 0) {
+        const [embeddedLh] = await pdfDoc.embedPdf(lhDoc, [0]);
+        const firstPage = pdfDoc.getPages()[0];
+        if (firstPage) {
+          const { width, height } = firstPage.getSize();
+          // Draw letterhead in background
+          firstPage.drawPage(embeddedLh, {
+            x: 0,
+            y: 0,
+            width,
+            height,
+            opacity: 1
+          });
+        }
+      }
+    } catch (lhErr) {
+      console.warn('Could not overlay letterhead PDF:', lhErr);
+    }
+  }
+
   const replacementDict = buildReplacementDictionary(data, mappings);
   const targetSignature = signatureDataUrl || data?.signatureImage || data?.signatureUrl || data?.mtSignatureUrl || data?.signature;
 
@@ -251,7 +291,6 @@ export async function searchAndReplaceInPdf(
 
           // 1. Literal replacement in ( ... )
           if (decodedText.includes(cleanToken)) {
-            // Escape parentheses for PDF literal syntax
             const safePdfVal = cleanValue.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
             decodedText = decodedText.split(cleanToken).join(safePdfVal);
             modified = true;
@@ -398,22 +437,33 @@ export async function generateFromDocxTemplateBytes(
 
 /**
  * Returns document bytes for live previewing or downloading
+ * Supports: PDF, Word (.docx), and Excel (.xlsx -> PDF or filled XLSX)
  */
 export async function generateDocumentBytes(
   templateUrl: string,
   data: any,
   mappings?: Record<string, string>,
-  signatureDataUrl?: string
-): Promise<{ blob: Blob; url: string; extension: 'pdf' | 'docx' }> {
+  signatureDataUrl?: string,
+  letterheadUrl?: string | null
+): Promise<{ blob: Blob; url: string; extension: 'pdf' | 'docx' | 'xlsx' }> {
   const arrayBuffer = await fetchFile(templateUrl);
   const isDocx = templateUrl.toLowerCase().includes('.docx');
+  const isExcel = templateUrl.toLowerCase().includes('.xlsx') || templateUrl.toLowerCase().includes('.xls');
 
   if (isDocx) {
     const blob = await generateFromDocxTemplateBytes(arrayBuffer, data, mappings);
     const url = URL.createObjectURL(blob);
     return { blob, url, extension: 'docx' };
+  } else if (isExcel) {
+    // Fill Excel template data, then convert directly to professional PDF!
+    const filledExcelBuffer = fillExcelTemplate(arrayBuffer, data, mappings);
+    const pdfBytes = await convertExcelToPdfBytes(filledExcelBuffer, letterheadUrl, data.subject || data.hospitalName || 'DOKUMEN BERITA ACARA');
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    return { blob, url, extension: 'pdf' };
   } else {
-    const pdfBytes = await searchAndReplaceInPdf(arrayBuffer, data, mappings, signatureDataUrl);
+    // PDF Template (with optional Kop Surat letterhead background)
+    const pdfBytes = await searchAndReplaceInPdf(arrayBuffer, data, mappings, signatureDataUrl, letterheadUrl);
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     return { blob, url, extension: 'pdf' };
@@ -428,8 +478,9 @@ export async function generateDocument(
   data: any,
   outputFilename: string,
   mappings?: Record<string, string>,
-  signatureDataUrl?: string
+  signatureDataUrl?: string,
+  letterheadUrl?: string | null
 ) {
-  const { blob, extension } = await generateDocumentBytes(templateUrl, data, mappings, signatureDataUrl);
+  const { blob, extension } = await generateDocumentBytes(templateUrl, data, mappings, signatureDataUrl, letterheadUrl);
   saveAs(blob, `${outputFilename}.${extension}`);
 }

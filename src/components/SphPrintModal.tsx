@@ -132,7 +132,8 @@ export const SphPrintModal: React.FC<SphPrintModalProps> = ({
         data, 
         `SPH_${sph.hospitalName}`, 
         sphConfig.mappings,
-        digitalSignatureUrl || undefined
+        digitalSignatureUrl || undefined,
+        templatesConfig?.kop_surat?.activeUrl || null
       );
     } catch (error) {
       console.error(error);

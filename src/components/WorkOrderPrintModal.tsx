@@ -158,7 +158,8 @@ export const WorkOrderPrintModal: React.FC<WorkOrderPrintModalProps> = ({
         data, 
         docName, 
         docMappings,
-        digitalSignatureUrl || undefined
+        digitalSignatureUrl || undefined,
+        templatesConfig?.kop_surat?.activeUrl || null
       );
     } catch (error) {
       console.error(error);

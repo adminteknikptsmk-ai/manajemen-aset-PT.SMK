@@ -19,7 +19,9 @@ import {
   ArrowRight,
   HelpCircle,
   PenTool,
-  Check
+  Check,
+  FileSpreadsheet,
+  Stamp
 } from 'lucide-react';
 import { SignaturePadModal } from './SignaturePadModal';
 import { 
@@ -35,6 +37,7 @@ import {
 import { uploadFile } from '../lib/storageHelper';
 import { 
   extractPlaceholdersFromPdf, 
+  extractPlaceholdersFromTemplate,
   generateDocumentBytes 
 } from '../lib/templateGenerator';
 import { 
@@ -65,7 +68,7 @@ export function TemplateSettings() {
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewDocType, setPreviewDocType] = useState<'pdf' | 'docx'>('pdf');
+  const [previewDocType, setPreviewDocType] = useState<'pdf' | 'docx' | 'xlsx'>('pdf');
   const [previewError, setPreviewError] = useState<string | null>(null);
 
   // Digital Signature state
@@ -203,19 +206,15 @@ export function TemplateSettings() {
       alert('Belum ada template aktif untuk dipindai. Silakan unggah template terlebih dahulu.');
       return;
     }
-    if (currentTypeConfig.activeFileType !== 'pdf') {
-      alert('Pemindaian otomatis langsung saat ini dioptimalkan untuk file PDF. Untuk file Word (.docx), Anda dapat menggunakan placeholder dengan kurung kurawal seperti {namaField}.');
-      return;
-    }
 
     setIsScanning(true);
     try {
       const res = await fetch(currentTypeConfig.activeUrl);
       const buffer = await res.arrayBuffer();
-      const detected = await extractPlaceholdersFromPdf(buffer);
+      const detected = await extractPlaceholdersFromTemplate(buffer, currentTypeConfig.activeFileName || '');
 
       if (detected.length === 0) {
-        alert('Tidak ditemukan AcroForm fields atau pola {{...}} dalam PDF ini. Anda dapat menambahkan pemetaan kustom secara manual.');
+        alert('Tidak ditemukan placeholder dalam template ini. Anda dapat menambahkan pemetaan token secara manual.');
       } else {
         const updated = { ...mappings };
         let addedCount = 0;
@@ -236,11 +235,11 @@ export function TemplateSettings() {
         });
 
         setMappings(updated);
-        alert(`Berhasil mendeteksi ${detected.length} token placeholder dari PDF! (${addedCount} token baru ditambahkan ke tabel pemetaan).`);
+        alert(`Berhasil mendeteksi ${detected.length} token placeholder dari template! (${addedCount} token baru ditambahkan ke tabel pemetaan).`);
       }
     } catch (error) {
       console.error('Scan error:', error);
-      alert('Gagal memindai file PDF.');
+      alert('Gagal memindai file template.');
     } finally {
       setIsScanning(false);
     }
@@ -254,11 +253,14 @@ export function TemplateSettings() {
       return;
     }
 
-    const isPdf = uploadFileObj.name.toLowerCase().endsWith('.pdf');
-    const isDocx = uploadFileObj.name.toLowerCase().endsWith('.docx');
+    const lowerName = uploadFileObj.name.toLowerCase();
+    const isPdf = lowerName.endsWith('.pdf');
+    const isDocx = lowerName.endsWith('.docx');
+    const isXlsx = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls');
+    const isImage = lowerName.endsWith('.png') || lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg') || lowerName.endsWith('.webp');
 
-    if (!isPdf && !isDocx) {
-      alert('Format file tidak didukung. Harap unggah file .pdf atau .docx');
+    if (!isPdf && !isDocx && !isXlsx && !isImage) {
+      alert('Format file tidak didukung. Harap unggah file .pdf, .docx, .xlsx, atau gambar (.png, .jpg)');
       return;
     }
 
@@ -266,17 +268,15 @@ export function TemplateSettings() {
     try {
       const folder = `templates/${activeType}`;
       const downloadUrl = await uploadFile(uploadFileObj, folder);
-      const fileType: 'pdf' | 'docx' = isDocx ? 'docx' : 'pdf';
+      const fileType: 'pdf' | 'docx' | 'xlsx' = isXlsx ? 'xlsx' : isDocx ? 'docx' : 'pdf';
 
-      // If PDF, extract placeholders initially
+      // Extract placeholders initially
       let detected: string[] = [];
-      if (isPdf) {
-        try {
-          const buffer = await uploadFileObj.arrayBuffer();
-          detected = await extractPlaceholdersFromPdf(buffer);
-        } catch {
-          // ignore scan error
-        }
+      try {
+        const buffer = await uploadFileObj.arrayBuffer();
+        detected = await extractPlaceholdersFromTemplate(buffer, uploadFileObj.name);
+      } catch {
+        // ignore scan error
       }
 
       await saveNewTemplateVersion(
@@ -338,14 +338,14 @@ export function TemplateSettings() {
     setPreviewUrl(null);
 
     try {
-      const isDocx = currentTypeConfig.activeUrl.toLowerCase().includes('.docx');
-      setPreviewDocType(isDocx ? 'docx' : 'pdf');
+      const letterheadUrl = config?.kop_surat?.activeUrl || null;
 
       const { url, extension } = await generateDocumentBytes(
         currentTypeConfig.activeUrl,
         mockData,
         mappings,
-        storedSignature || undefined
+        storedSignature || undefined,
+        letterheadUrl
       );
 
       setPreviewUrl(url);
@@ -367,14 +367,14 @@ export function TemplateSettings() {
     setPreviewUrl(null);
 
     try {
-      const isDocx = version.fileUrl.toLowerCase().includes('.docx');
-      setPreviewDocType(isDocx ? 'docx' : 'pdf');
+      const letterheadUrl = config?.kop_surat?.activeUrl || null;
 
       const { url, extension } = await generateDocumentBytes(
         version.fileUrl,
         mockData,
         version.mappings || mappings,
-        storedSignature || undefined
+        storedSignature || undefined,
+        letterheadUrl
       );
 
       setPreviewUrl(url);
@@ -387,11 +387,12 @@ export function TemplateSettings() {
     }
   };
 
-  const documentTypeTabs: { id: TemplateDocType; label: string; short: string; desc: string }[] = [
-    { id: 'sph', label: 'Surat Penawaran Harga (SPH)', short: 'SPH', desc: 'Template Surat Penawaran Harga resmi untuk RS / Faskes' },
-    { id: 'spk', label: 'Surat Perintah Kerja (SPK)', short: 'SPK', desc: 'Template Surat Perintah Kerja teknisi kalibrasi' },
-    { id: 'bap', label: 'Berita Acara Pekerjaan (BAP)', short: 'BAP', desc: 'Template Berita Acara Pekerjaan kalibrasi rumah sakit' },
-    { id: 'bastp', label: 'Sertifikat Kalibrasi (BASTP)', short: 'BASTP', desc: 'Template Berita Acara Serah Terima & Sertifikat Kalibrasi' },
+  const documentTypeTabs: { id: TemplateDocType; label: string; short: string; desc: string; icon: any }[] = [
+    { id: 'kop_surat', label: 'Kop Surat Resmi (A4 Kosongan)', short: 'KOP SURAT', desc: 'Template Kop Surat A4 untuk latar resmi SPH, SPK, BAP, & BASTP', icon: Stamp },
+    { id: 'sph', label: 'Surat Penawaran Harga (SPH)', short: 'SPH', desc: 'Template Surat Penawaran Harga resmi untuk RS / Faskes (menggunakan Kop Surat)', icon: FileText },
+    { id: 'spk', label: 'Surat Perintah Kerja (SPK)', short: 'SPK', desc: 'Template Surat Perintah Kerja teknisi kalibrasi (menggunakan Kop Surat)', icon: FileText },
+    { id: 'bap', label: 'Berita Acara Pekerjaan (BAP)', short: 'BAP', desc: 'Template Berita Acara Pekerjaan (Excel/Word/PDF -> PDF Otomatis)', icon: FileSpreadsheet },
+    { id: 'bastp', label: 'Sertifikat & BASTP', short: 'BASTP', desc: 'Template Berita Acara Serah Terima & Sertifikat Kalibrasi (Excel/Word/PDF -> PDF)', icon: FileSpreadsheet },
   ];
 
   return (
@@ -469,23 +470,27 @@ export function TemplateSettings() {
 
         {/* Document Tabs */}
         <div className="flex flex-wrap gap-2 mt-6 pt-5 border-t border-slate-100">
-          {documentTypeTabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveType(tab.id)}
-              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                activeType === tab.id
-                  ? 'bg-[#1C658C] text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80'
-              }`}
-            >
-              <FileText className="w-4 h-4" />
-              <span>{tab.label}</span>
-              {config && config[tab.id]?.activeUrl && (
-                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-              )}
-            </button>
-          ))}
+          {documentTypeTabs.map(tab => {
+            const TabIcon = tab.icon;
+            const hasActive = Boolean(config && config[tab.id]?.activeUrl);
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveType(tab.id)}
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                  activeType === tab.id
+                    ? 'bg-[#1C658C] text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80'
+                }`}
+              >
+                <TabIcon className="w-4 h-4" />
+                <span>{tab.label}</span>
+                {hasActive && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" title="Template Aktif Siap"></span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -1153,11 +1158,11 @@ export function TemplateSettings() {
             <form onSubmit={handleUploadNewVersion} className="space-y-4 mt-4 text-xs">
               <div>
                 <label className="block font-bold text-slate-800 mb-1">
-                  Pilih File Template (.pdf atau .docx) <span className="text-rose-500">*</span>
+                  Pilih File Template / Kop (.pdf, .docx, .xlsx, .png, .jpg) <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="file"
-                  accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  accept=".pdf,.docx,.xlsx,.xls,.png,.jpg,.jpeg,.webp,application/pdf,image/*,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                   onChange={(e) => {
                     const f = e.target.files?.[0] || null;
                     setUploadFileObj(f);
@@ -1168,6 +1173,13 @@ export function TemplateSettings() {
                   required
                   className="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#1C658C] file:text-white hover:file:bg-[#144966] cursor-pointer"
                 />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  {activeType === 'kop_surat' 
+                    ? 'Direkomendasikan file PDF A4 kosong dengan header & footer resmi SMK.' 
+                    : (activeType === 'bap' || activeType === 'bastp')
+                    ? 'Bisa menggunakan file Excel (.xlsx) dengan token placeholder seperti {{hospitalName}} atau file PDF/DOCX.'
+                    : 'Mendukung file PDF (AcroForm) atau Word (.docx).'}
+                </p>
               </div>
 
               <div>

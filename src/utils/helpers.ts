@@ -1,4 +1,4 @@
-import { CalibrationSchedule, AutomaticReminder, UrgencyLevel, Hospital, MedicalDeviceToCalibrate } from '../types';
+import { CalibrationSchedule, AutomaticReminder, UrgencyLevel, Hospital, MedicalDeviceToCalibrate, DeviceSeliaItem } from '../types';
 
 // ==========================================
 // 7-DIGIT CALIBRATION LABEL NUMBER SYSTEM
@@ -329,3 +329,44 @@ ${devicesStr}
 ----------------------------------------
 _Pesan otomatis Sistem Manajemen Aset & Kalibrasi Medis PT Sarana Medika Kalibrasi._`;
 }
+
+export function ensureDeviceSeliaItems(schedule: CalibrationSchedule): DeviceSeliaItem[] {
+  if (schedule.seliaItems && schedule.seliaItems.length > 0) {
+    return schedule.seliaItems;
+  }
+
+  const items: DeviceSeliaItem[] = [];
+  let globalUnitCounter = 1;
+
+  schedule.targetDevices.forEach(d => {
+    const qty = Math.max(1, d.quantity || 1);
+    const startSeq = d.labelSequenceStart || schedule.labelSequenceStart || 1;
+    const hospitalCode = schedule.hospitalCode || '100';
+
+    for (let i = 1; i <= qty; i++) {
+      const unitSeq = startSeq + i - 1;
+      const unitLabel = formatLabelNumber(hospitalCode, unitSeq);
+      const unitTitle = qty > 1 ? `${d.name} (Unit #${i})` : d.name;
+      const serialNumber = qty > 1 && d.serialNumber ? `${d.serialNumber}-${i}` : (d.serialNumber || '-');
+
+      items.push({
+        id: `selia-${d.id}-${i}`,
+        unitNo: globalUnitCounter++,
+        parentDeviceId: d.id,
+        deviceName: d.name,
+        unitTitle: unitTitle,
+        brandModel: d.brandModel || '-',
+        serialNumber: serialNumber,
+        labelNumber: unitLabel,
+        room: d.room || '-',
+        testStatus: 'Laik Pakai / Sudah Lulus Kalibrasi',
+        seliaStatus: 'Belum Diselia',
+        keterangan: '',
+        updatedAt: getCurrentDateStr()
+      });
+    }
+  });
+
+  return items;
+}
+

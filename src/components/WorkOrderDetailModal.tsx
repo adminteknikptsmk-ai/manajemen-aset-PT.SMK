@@ -22,7 +22,7 @@ import {
   Award
 } from 'lucide-react';
 import { CalibrationSchedule, MedicalDeviceToCalibrate } from '../types';
-import { formatRupiah, formatIndonesianDate, getUrgencyInfo, generateWhatsAppMessage, TODAY_STR } from '../utils/helpers';
+import { formatRupiah, formatIndonesianDate, getUrgencyInfo, generateWhatsAppMessage, TODAY_STR, ensureDeviceSeliaItems } from '../utils/helpers';
 import confetti from 'canvas-confetti';
 
 import { PdfUploader } from './PdfUploader';
@@ -120,7 +120,7 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
     onUpdateSchedule(updatedSchedule);
   };
 
-  // Mark all devices as Pass & Complete
+  // Mark all devices as Pass & Complete calibration -> transfer to Selia & Sertifikat
   const handleCompleteAll = () => {
     const updatedDevices = devices.map(d => ({
       ...d,
@@ -132,15 +132,22 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
     const autoCert = certNumber || `CERT-SMK-2026-${Date.now().toString().slice(-4)}/${schedule.hospitalName.slice(0, 4).toUpperCase()}`;
     setCertNumber(autoCert);
 
-    const updatedSchedule: CalibrationSchedule = {
+    const baseUpdatedSchedule: CalibrationSchedule = {
       ...schedule,
       targetDevices: updatedDevices,
       progressPercent: 100,
       bapPdfUrl,
       bastpPdfUrl,
-      status: 'Sertifikat Terbit',
+      status: 'Selesai Kalibrasi',
       completedDate: TODAY_STR,
       certificateNumber: autoCert
+    };
+
+    // Auto generate 1-by-1 unit items for Selia & Sertifikat tracking
+    const seliaItems = ensureDeviceSeliaItems(baseUpdatedSchedule);
+    const updatedSchedule: CalibrationSchedule = {
+      ...baseUpdatedSchedule,
+      seliaItems
     };
 
     onUpdateSchedule(updatedSchedule);
@@ -270,54 +277,29 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#D8D2CB]">
               <button
                 onClick={handleCompleteAll}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-xs transition-colors"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-lg text-xs flex items-center gap-2 shadow-xs transition-colors"
               >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Tandai Semua Lulus (Pass 100%) & Terbitkan Sertifikat</span>
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Sudah Selesai Kalibrasi</span>
               </button>
 
               <div className="flex flex-wrap items-center gap-2">
                 <button
-                  onClick={handleCopyWA}
-                  className="bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-colors shadow-xs"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>{copiedWA ? 'Teks WA Tersalin!' : 'Kirim WA'}</span>
-                </button>
-
-                <button
                   onClick={() => onOpenPrintModal(schedule)}
-                  className="bg-[#1C658C] hover:bg-[#398AB9] text-white font-bold px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-xs transition-colors"
-                  title="Cetak Surat Perintah Kerja (SPK)"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>Cetak SPK</span>
-                </button>
-
-                <button
-                  onClick={() => onOpenPrintModal(schedule)}
-                  className="bg-[#398AB9] hover:bg-[#1C658C] text-white font-bold px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-xs transition-colors"
+                  className="bg-[#398AB9] hover:bg-[#1C658C] text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-xs transition-colors"
                   title="Cetak Berita Acara Pekerjaan (BAP)"
                 >
                   <Briefcase className="w-3.5 h-3.5" />
-                  <span>BAP</span>
+                  <span>Cetak BAP</span>
                 </button>
 
                 <button
                   onClick={() => onOpenPrintModal(schedule)}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-xs transition-colors"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-xs transition-colors"
                   title="Cetak Berita Acara Kalibrasi (BASTP)"
                 >
                   <Award className="w-3.5 h-3.5" />
-                  <span>BASTP</span>
-                </button>
-
-                <button
-                  onClick={() => onOpenEditModal(schedule)}
-                  className="bg-white hover:bg-[#EEEEEE] text-slate-700 border border-[#D8D2CB] font-bold px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-colors shadow-xs"
-                >
-                  <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Edit SPK</span>
+                  <span>Cetak BASTP</span>
                 </button>
               </div>
             </div>
@@ -363,8 +345,8 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
                         >
                           <option value="Pending">Pending (Belum Diuji)</option>
                           <option value="In Progress">Sedang Diuji</option>
-                          <option value="Pass">Pass (Lulus Uji)</option>
-                          <option value="Fail">Fail (Tidak Lulus)</option>
+                          <option value="Pass">Laik Pakai / Sudah Lulus Kalibrasi</option>
+                          <option value="Fail">Fail (Tidak Lulus Uji)</option>
                           <option value="Needs Adjustment">Perlu Penyesuaian</option>
                         </select>
                       </td>
@@ -389,30 +371,40 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
             <div className="bg-[#EEEEEE]/40 p-3.5 rounded-xl border border-[#D8D2CB]">
               <h4 className="font-bold text-[#1C658C] text-xs flex items-center gap-1.5 mb-1.5">
                 <Briefcase className="w-3.5 h-3.5" />
-                Upload Dokumen BAP (PDF)
+                Upload Dokumen BAP (Scan / PDF)
               </h4>
               <PdfUploader 
                 folder="bap"
                 documentId={schedule.id}
                 existingPdfUrl={bapPdfUrl}
+                label="Dokumen BAP (Berita Acara Pengujian)"
                 onUploadSuccess={(url) => {
                   setBapPdfUrl(url);
                   onUpdateSchedule({ ...schedule, bapPdfUrl: url });
+                }}
+                onRemove={() => {
+                  setBapPdfUrl(undefined);
+                  onUpdateSchedule({ ...schedule, bapPdfUrl: undefined });
                 }}
               />
             </div>
             <div className="bg-[#EEEEEE]/40 p-3.5 rounded-xl border border-[#D8D2CB]">
               <h4 className="font-bold text-[#1C658C] text-xs flex items-center gap-1.5 mb-1.5">
                 <Award className="w-3.5 h-3.5" />
-                Upload Dokumen BASTP (PDF)
+                Upload Dokumen BASTP (Scan / PDF)
               </h4>
               <PdfUploader 
                 folder="bastp"
                 documentId={schedule.id}
                 existingPdfUrl={bastpPdfUrl}
+                label="Dokumen BASTP (Serah Terima Pekerjaan)"
                 onUploadSuccess={(url) => {
                   setBastpPdfUrl(url);
                   onUpdateSchedule({ ...schedule, bastpPdfUrl: url });
+                }}
+                onRemove={() => {
+                  setBastpPdfUrl(undefined);
+                  onUpdateSchedule({ ...schedule, bastpPdfUrl: undefined });
                 }}
               />
             </div>

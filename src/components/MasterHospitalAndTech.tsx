@@ -13,14 +13,18 @@ import {
   X,
   ShieldCheck,
   CheckCircle2,
-  Users
+  Users,
+  FileCheck
 } from 'lucide-react';
-import { Technician, MarketingStaff } from '../types';
+import { Technician, MarketingStaff, CalibrationSchedule } from '../types';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
+import { PostCalibrationSeliaManager } from './PostCalibrationSeliaManager';
 
 interface MasterHospitalAndTechProps {
   technicians: Technician[];
   marketingList?: MarketingStaff[];
+  schedules?: CalibrationSchedule[];
+  onUpdateSchedule?: (schedule: CalibrationSchedule) => void;
   onAddTechnician: (technician: Technician) => void;
   onUpdateTechnician: (technician: Technician) => void;
   onDeleteTechnician?: (technicianId: string) => void;
@@ -37,13 +41,15 @@ interface MasterHospitalAndTechProps {
 export const MasterHospitalAndTech: React.FC<MasterHospitalAndTechProps> = ({
   technicians,
   marketingList = [],
+  schedules = [],
+  onUpdateSchedule,
   onAddTechnician,
   onUpdateTechnician,
   onDeleteTechnician,
   onAddMarketing,
   onDeleteMarketing
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'technicians' | 'marketing' | 'management'>('technicians');
+  const [activeSubTab, setActiveSubTab] = useState<'technicians' | 'marketing' | 'management' | 'post_calibration'>('technicians');
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddTechModal, setShowAddTechModal] = useState(false);
   const [showAddMarketingModal, setShowAddMarketingModal] = useState(false);
@@ -269,6 +275,18 @@ export const MasterHospitalAndTech: React.FC<MasterHospitalAndTechProps> = ({
           >
             <Award className="w-3.5 h-3.5" />
             <span>Manajemen Teknik & KAN</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('post_calibration')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all ${
+              activeSubTab === 'post_calibration'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <FileCheck className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Update Perkembangan Setelah Kalibrasi Selesai</span>
           </button>
         </div>
 
@@ -512,6 +530,14 @@ export const MasterHospitalAndTech: React.FC<MasterHospitalAndTechProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* SUBTAB 4: UPDATE PERKEMBANGAN SETELAH KALIBRASI SELESAI (SELIA & CERTIFICATE) */}
+      {activeSubTab === 'post_calibration' && (
+        <PostCalibrationSeliaManager
+          schedules={schedules}
+          onUpdateSchedule={onUpdateSchedule || (() => {})}
+        />
       )}
 
       {/* ADD/EDIT TECHNICIAN MODAL */}

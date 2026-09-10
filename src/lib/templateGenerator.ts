@@ -669,11 +669,14 @@ export async function generateDocumentBytes(
   data: any,
   mappings?: Record<string, string>,
   signatureDataUrl?: string,
-  letterheadUrl?: string | null
+  letterheadUrl?: string | null,
+  fileTypeHint?: 'pdf' | 'docx' | 'xlsx'
 ): Promise<{ 
   blob: Blob; 
   url: string; 
   extension: 'pdf' | 'docx' | 'xlsx';
+  excelUrl?: string;
+  pdfUrl?: string;
   isGoogleDriveLink?: boolean;
   googleDriveFileId?: string;
 }> {
@@ -682,20 +685,44 @@ export async function generateDocumentBytes(
 
   try {
     const arrayBuffer = await fetchFile(templateUrl);
-    const isDocx = templateUrl.toLowerCase().includes('.docx');
-    const isExcel = templateUrl.toLowerCase().includes('.xlsx') || templateUrl.toLowerCase().includes('.xls');
+    const lowerUrl = templateUrl.toLowerCase();
+    const isDocx = fileTypeHint === 'docx' || lowerUrl.includes('.docx');
+    const isExcel = fileTypeHint === 'xlsx' || lowerUrl.includes('.xlsx') || lowerUrl.includes('.xls') || lowerUrl.includes('spreadsheet');
 
     if (isDocx) {
       const blob = await generateFromDocxTemplateBytes(arrayBuffer, data, mappings);
       const url = URL.createObjectURL(blob);
       return { blob, url, extension: 'docx', isGoogleDriveLink: isGdrive, googleDriveFileId: gdriveId || undefined };
     } else if (isExcel) {
-      // Fill Excel template data, then convert directly to professional PDF!
+      // Fill Excel template data
       const filledExcelBuffer = fillExcelTemplate(arrayBuffer, data, mappings);
-      const pdfBytes = await convertExcelToPdfBytes(filledExcelBuffer, letterheadUrl, data.subject || data.hospitalName || 'DOKUMEN BERITA ACARA');
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      return { blob, url, extension: 'pdf', isGoogleDriveLink: isGdrive, googleDriveFileId: gdriveId || undefined };
+      const excelBlob = new Blob([filledExcelBuffer], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
+      const excelDownloadUrl = URL.createObjectURL(excelBlob);
+
+      let pdfDownloadUrl: string | undefined = undefined;
+      try {
+        const pdfBytes = await convertExcelToPdfBytes(
+          filledExcelBuffer, 
+          letterheadUrl, 
+          data.subject || data.hospitalName || 'DOKUMEN BERITA ACARA'
+        );
+        const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+        pdfDownloadUrl = URL.createObjectURL(pdfBlob);
+      } catch (pdfErr) {
+        console.warn('Could not generate PDF from Excel for preview:', pdfErr);
+      }
+
+      return { 
+        blob: excelBlob, 
+        url: pdfDownloadUrl || excelDownloadUrl, 
+        excelUrl: excelDownloadUrl,
+        pdfUrl: pdfDownloadUrl,
+        extension: 'xlsx', 
+        isGoogleDriveLink: isGdrive, 
+        googleDriveFileId: gdriveId || undefined 
+      };
     } else {
       // PDF Template (with optional Kop Surat letterhead background)
       const pdfBytes = await searchAndReplaceInPdf(arrayBuffer, data, mappings, signatureDataUrl, letterheadUrl);

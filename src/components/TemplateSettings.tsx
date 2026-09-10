@@ -70,6 +70,8 @@ export function TemplateSettings() {
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewExcelUrl, setPreviewExcelUrl] = useState<string | null>(null);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [previewDocType, setPreviewDocType] = useState<'pdf' | 'docx' | 'xlsx'>('pdf');
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewIsGdrive, setPreviewIsGdrive] = useState(false);
@@ -360,6 +362,8 @@ export function TemplateSettings() {
     setPreviewLoading(true);
     setPreviewError(null);
     setPreviewUrl(null);
+    setPreviewExcelUrl(null);
+    setPreviewPdfUrl(null);
     setPreviewTabMode('injected');
 
     const gdriveId = extractGoogleDriveFileId(currentTypeConfig.activeUrl);
@@ -368,16 +372,19 @@ export function TemplateSettings() {
     try {
       const letterheadUrl = config?.kop_surat?.activeUrl || null;
 
-      const { url, extension, isGoogleDriveLink, googleDriveFileId } = await generateDocumentBytes(
+      const { url, extension, excelUrl, pdfUrl, isGoogleDriveLink, googleDriveFileId } = await generateDocumentBytes(
         currentTypeConfig.activeUrl,
         mockData,
         mappings,
         storedSignature || undefined,
-        letterheadUrl
+        letterheadUrl,
+        currentTypeConfig.activeFileType
       );
 
       setPreviewUrl(url);
       setPreviewDocType(extension);
+      setPreviewExcelUrl(excelUrl || null);
+      setPreviewPdfUrl(pdfUrl || (extension === 'pdf' ? url : null));
       setPreviewIsGdrive(!!isGoogleDriveLink || !!gdriveId);
       if (googleDriveFileId) setPreviewGdriveFileId(googleDriveFileId);
     } catch (error: any) {
@@ -395,6 +402,8 @@ export function TemplateSettings() {
     setPreviewLoading(true);
     setPreviewError(null);
     setPreviewUrl(null);
+    setPreviewExcelUrl(null);
+    setPreviewPdfUrl(null);
     setPreviewTabMode('injected');
 
     const gdriveId = extractGoogleDriveFileId(version.fileUrl);
@@ -403,16 +412,19 @@ export function TemplateSettings() {
     try {
       const letterheadUrl = config?.kop_surat?.activeUrl || null;
 
-      const { url, extension, isGoogleDriveLink, googleDriveFileId } = await generateDocumentBytes(
+      const { url, extension, excelUrl, pdfUrl, isGoogleDriveLink, googleDriveFileId } = await generateDocumentBytes(
         version.fileUrl,
         mockData,
         mappings,
         storedSignature || undefined,
-        letterheadUrl
+        letterheadUrl,
+        version.fileType
       );
 
       setPreviewUrl(url);
       setPreviewDocType(extension);
+      setPreviewExcelUrl(excelUrl || null);
+      setPreviewPdfUrl(pdfUrl || (extension === 'pdf' ? url : null));
       setPreviewIsGdrive(!!isGoogleDriveLink || !!gdriveId);
       if (googleDriveFileId) setPreviewGdriveFileId(googleDriveFileId);
     } catch (error: any) {
@@ -1415,6 +1427,64 @@ export function TemplateSettings() {
                   title="PDF Preview"
                   className="w-full h-full rounded-xl bg-white shadow-md border border-slate-300"
                 />
+              ) : previewDocType === 'xlsx' ? (
+                <div className="w-full h-full flex flex-col items-center justify-between gap-3 overflow-hidden">
+                  {/* Excel Banner */}
+                  <div className="w-full bg-emerald-50 border border-emerald-200 px-4 py-2.5 rounded-xl flex flex-wrap items-center justify-between gap-2 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-emerald-600 text-white rounded-lg shadow-xs">
+                        <FileSpreadsheet className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-emerald-950 block">File Spreadsheet Excel (.xlsx) Berhasil Diinjeksi Data</span>
+                        <span className="text-[11px] text-emerald-800">
+                          {previewPdfUrl ? 'Tampilan cetak PDF siap di bawah • File mentah .xlsx dapat diunduh langsung' : 'Data simulasi telah diinjeksi ke dalam sel spreadsheet'}
+                        </span>
+                      </div>
+                    </div>
+                    {previewExcelUrl && (
+                      <a
+                        href={previewExcelUrl}
+                        download={`PREVIEW_${activeType.toUpperCase()}_SIMULASI.xlsx`}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>Unduh File Excel (.xlsx) Hasil Simulasi</span>
+                      </a>
+                    )}
+                  </div>
+
+                  {/* PDF Print View iframe or Info Box */}
+                  {previewPdfUrl ? (
+                    <iframe
+                      src={previewPdfUrl}
+                      title="Excel PDF Print Preview"
+                      className="w-full h-full flex-1 rounded-xl bg-white shadow-md border border-slate-300"
+                    />
+                  ) : (
+                    <div className="p-8 bg-white rounded-2xl max-w-lg text-center shadow-lg space-y-4 my-auto">
+                      <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto">
+                        <FileSpreadsheet className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-base">File Excel (.xlsx) Berhasil Diproses</h4>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Seluruh placeholder & token data simulasi telah berhasil diinjeksi ke dalam sel-sel spreadsheet Excel.
+                        </p>
+                      </div>
+                      {previewExcelUrl && (
+                        <a
+                          href={previewExcelUrl}
+                          download={`PREVIEW_${activeType.toUpperCase()}_SIMULASI.xlsx`}
+                          className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all"
+                        >
+                          <Download className="w-4 h-4" />
+                          <span>Unduh File Excel (.xlsx) Hasil Simulasi</span>
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
               ) : previewDocType === 'docx' ? (
                 <div className="p-8 bg-white rounded-2xl max-w-lg text-center shadow-lg space-y-4">
                   <div className="w-14 h-14 bg-blue-50 text-[#1C658C] rounded-2xl flex items-center justify-center mx-auto">

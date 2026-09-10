@@ -38,7 +38,8 @@ import { uploadFile } from '../lib/storageHelper';
 import { 
   extractPlaceholdersFromPdf, 
   extractPlaceholdersFromTemplate,
-  generateDocumentBytes 
+  generateDocumentBytes,
+  extractGoogleDriveFileId
 } from '../lib/templateGenerator';
 import { 
   getSystemFieldsForType, 
@@ -71,6 +72,9 @@ export function TemplateSettings() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewDocType, setPreviewDocType] = useState<'pdf' | 'docx' | 'xlsx'>('pdf');
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewIsGdrive, setPreviewIsGdrive] = useState(false);
+  const [previewGdriveFileId, setPreviewGdriveFileId] = useState<string | null>(null);
+  const [previewTabMode, setPreviewTabMode] = useState<'injected' | 'native_gdrive'>('injected');
 
   // Digital Signature state
   const [showSignatureModal, setShowSignatureModal] = useState(false);
@@ -353,11 +357,15 @@ export function TemplateSettings() {
     setPreviewLoading(true);
     setPreviewError(null);
     setPreviewUrl(null);
+    setPreviewTabMode('injected');
+
+    const gdriveId = extractGoogleDriveFileId(currentTypeConfig.activeUrl);
+    setPreviewGdriveFileId(gdriveId);
 
     try {
       const letterheadUrl = config?.kop_surat?.activeUrl || null;
 
-      const { url, extension } = await generateDocumentBytes(
+      const { url, extension, isGoogleDriveLink, googleDriveFileId } = await generateDocumentBytes(
         currentTypeConfig.activeUrl,
         mockData,
         mappings,
@@ -367,6 +375,8 @@ export function TemplateSettings() {
 
       setPreviewUrl(url);
       setPreviewDocType(extension);
+      setPreviewIsGdrive(!!isGoogleDriveLink || !!gdriveId);
+      if (googleDriveFileId) setPreviewGdriveFileId(googleDriveFileId);
     } catch (error: any) {
       console.error('Preview error:', error);
       setPreviewError(error?.message || 'Gagal menghasilkan pratinjau dokumen.');
@@ -382,23 +392,29 @@ export function TemplateSettings() {
     setPreviewLoading(true);
     setPreviewError(null);
     setPreviewUrl(null);
+    setPreviewTabMode('injected');
+
+    const gdriveId = extractGoogleDriveFileId(version.fileUrl);
+    setPreviewGdriveFileId(gdriveId);
 
     try {
       const letterheadUrl = config?.kop_surat?.activeUrl || null;
 
-      const { url, extension } = await generateDocumentBytes(
+      const { url, extension, isGoogleDriveLink, googleDriveFileId } = await generateDocumentBytes(
         version.fileUrl,
         mockData,
-        version.mappings || mappings,
+        mappings,
         storedSignature || undefined,
         letterheadUrl
       );
 
       setPreviewUrl(url);
       setPreviewDocType(extension);
+      setPreviewIsGdrive(!!isGoogleDriveLink || !!gdriveId);
+      if (googleDriveFileId) setPreviewGdriveFileId(googleDriveFileId);
     } catch (error: any) {
-      console.error('Preview version error:', error);
-      setPreviewError(error?.message || 'Gagal menghasilkan pratinjau versi dokumen.');
+      console.error('Preview error:', error);
+      setPreviewError(error?.message || 'Gagal menghasilkan pratinjau dokumen.');
     } finally {
       setPreviewLoading(false);
     }
@@ -1326,9 +1342,53 @@ export function TemplateSettings() {
               </div>
             </div>
 
+            {/* Google Drive Preview Switcher Bar */}
+            {previewGdriveFileId && (
+              <div className="bg-slate-100 px-6 py-2 border-b border-[#D8D2CB] flex flex-wrap items-center justify-between gap-2 shrink-0">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPreviewTabMode('injected')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      previewTabMode === 'injected'
+                        ? 'bg-[#1C658C] text-white shadow-xs'
+                        : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-300'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Hasil Injeksi Data</span>
+                  </button>
+
+                  <button
+                    onClick={() => setPreviewTabMode('native_gdrive')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      previewTabMode === 'native_gdrive'
+                        ? 'bg-[#1C658C] text-white shadow-xs'
+                        : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-300'
+                    }`}
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Tampilan Asli Google Drive (Viewer)</span>
+                  </button>
+                </div>
+
+                <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-md flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+                  <span>
+                    Template dari Link Google Drive. Untuk pengeditan token langsung tanpa CORS, disarankan juga mengunggah file .pdf / .docx langsung.
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Modal Body / Viewer */}
             <div className="flex-1 bg-slate-900/10 p-2 sm:p-4 overflow-hidden flex flex-col items-center justify-center">
-              {previewLoading ? (
+              {previewTabMode === 'native_gdrive' && previewGdriveFileId ? (
+                <iframe
+                  src={`https://drive.google.com/file/d/${previewGdriveFileId}/preview`}
+                  title="Google Drive Native Preview"
+                  className="w-full h-full rounded-xl bg-white shadow-md border border-slate-300"
+                />
+              ) : previewLoading ? (
                 <div className="flex flex-col items-center justify-center p-12 bg-white rounded-2xl shadow-sm">
                   <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#1C658C]"></div>
                   <p className="text-xs text-slate-600 font-bold mt-4">Menginjeksi data simulasi ke template...</p>

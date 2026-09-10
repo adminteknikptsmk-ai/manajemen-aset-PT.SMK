@@ -59,38 +59,63 @@ export async function fetchFile(url: string): Promise<ArrayBuffer> {
     return bytes.buffer;
   }
 
-  const directUrl = transformGoogleDriveUrl(url);
+  const fileId = extractGoogleDriveFileId(url);
+  const candidates: string[] = [];
 
-  let res: Response;
-  try {
-    res = await fetch(directUrl);
-  } catch (err) {
-    if (directUrl !== url) {
-      res = await fetch(url);
-    } else {
-      throw err;
+  if (fileId) {
+    // 1. Direct Google CDN endpoint (works for many publicly shared Google Drive files)
+    candidates.push(`https://lh3.googleusercontent.com/d/${fileId}`);
+    // 2. Google Docs PDF export
+    if (url.includes('docs.google.com/document')) {
+      candidates.push(`https://docs.google.com/document/d/${fileId}/export?format=pdf`);
+    }
+    // 3. Google Sheets XLSX export
+    if (url.includes('docs.google.com/spreadsheets')) {
+      candidates.push(`https://docs.google.com/spreadsheets/d/${fileId}/export?format=xlsx`);
+    }
+    // 4. Standard uc export
+    candidates.push(`https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`);
+    candidates.push(`https://docs.google.com/uc?export=download&id=${fileId}&confirm=t`);
+    // 5. CORS proxies as high-reliability fallbacks
+    candidates.push(`https://corsproxy.io/?${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${fileId}`)}`);
+    candidates.push(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${fileId}`)}`);
+  } else {
+    candidates.push(transformGoogleDriveUrl(url));
+    if (transformGoogleDriveUrl(url) !== url) {
+      candidates.push(url);
     }
   }
 
-  if (!res.ok) throw new Error(`Gagal mengunduh file template (${res.status} ${res.statusText})`);
-  
-  const buffer = await res.arrayBuffer();
+  let lastError: any = null;
 
-  // Inspect first 300 bytes for HTML response (Google Drive view page or permission error)
-  const headerText = new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(buffer.slice(0, 300))).trim();
-  if (
-    headerText.toLowerCase().includes('<!doctype html') || 
-    headerText.toLowerCase().includes('<html') || 
-    headerText.toLowerCase().includes('google drive -')
-  ) {
-    const fileId = extractGoogleDriveFileId(url);
-    if (fileId) {
-      throw new Error(`LINK_GOOGLE_DRIVE_HTML:${fileId}`);
+  for (const targetUrl of candidates) {
+    try {
+      const res = await fetch(targetUrl);
+      if (!res.ok) continue;
+
+      const buffer = await res.arrayBuffer();
+      if (!buffer || buffer.byteLength < 50) continue;
+
+      // Inspect first 300 bytes for HTML response
+      const headerText = new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(buffer.slice(0, 300))).trim();
+      const isHtml = 
+        headerText.toLowerCase().includes('<!doctype html') || 
+        headerText.toLowerCase().includes('<html') || 
+        headerText.toLowerCase().includes('google drive -');
+
+      if (!isHtml) {
+        return buffer; // Successfully fetched actual binary PDF/DOCX/XLSX!
+      }
+    } catch (err) {
+      lastError = err;
     }
-    throw new Error('File template mengembalikan halaman web HTML. Harap pastikan file memilliki akses publik (Anyone with link).');
   }
 
-  return buffer;
+  if (fileId) {
+    throw new Error(`LINK_GOOGLE_DRIVE_HTML:${fileId}`);
+  }
+
+  throw lastError || new Error(`Gagal mengunduh file template dari URL.`);
 }
 
 /**

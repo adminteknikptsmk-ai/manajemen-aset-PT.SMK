@@ -14,13 +14,16 @@ import {
   Tablet,
   LogOut,
   Settings,
-  Trash2
+  Trash2,
+  ShieldCheck,
+  User
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CalibrationSchedule, CalibratorAsset } from '../types';
 import { getUrgencyInfo } from '../utils/helpers';
 import { CompanyLogo } from './CompanyLogo';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
+import { useAuth } from '../firebase/AuthContext';
 
 export type AppTab = 'dashboard' | 'sph' | 'schedules' | 'calibrators' | 'tablets' | 'financial' | 'masters' | 'templates';
 
@@ -62,6 +65,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenNewSph,
   onPurgeAllData
 }) => {
+  const { user, role, logout } = useAuth();
   const [showPurgeConfirm, setShowPurgeConfirm] = useState(false);
 
   // Calculate critical alert count
@@ -250,17 +254,32 @@ export const Navbar: React.FC<NavbarProps> = ({
             <CompanyLogo size="md" showSubtitle={true} variant="dark" allowUpload={true} />
           </div>
 
-          {/* Quick Action Buttons */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 overflow-x-auto scrollbar-none">
+          {/* User Profile Badge & Logout Button */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            {user && (
+              <div className="hidden sm:flex items-center gap-2 bg-[#0F364C] px-3 py-1.5 rounded-xl border border-[#1C658C] shadow-sm text-xs">
+                <div className={`w-2 h-2 rounded-full ${role === 'admin_keuangan' ? 'bg-emerald-400' : 'bg-cyan-400'} animate-pulse`}></div>
+                <div className="flex flex-col text-left">
+                  <span className="font-bold text-white text-[11px] leading-tight">
+                    {user.displayName || (role === 'admin_keuangan' ? 'Admin Keuangan' : 'Admin Teknik')}
+                  </span>
+                  <span className="text-[9px] text-[#D8D2CB]/80 font-mono leading-tight">
+                    {user.email || (role === 'admin_keuangan' ? 'adminkeuangan@ptsmk.com' : 'adminteknik@ptsmk.com')}
+                  </span>
+                </div>
+              </div>
+            )}
             
             <button
-              onClick={() => window.dispatchEvent(new CustomEvent('app:logout'))}
-              className="p-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl transition-colors shadow-sm ml-1 shrink-0"
+              onClick={() => logout()}
+              className="px-3 py-2 bg-rose-600/90 hover:bg-rose-600 text-white rounded-xl transition-all shadow-sm flex items-center gap-1.5 text-xs font-semibold hover:scale-[1.02] active:scale-95 border border-rose-500/50"
               title="Keluar dari Portal"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Keluar</span>
             </button>
           </div>
+
         </div>
       </div>
 

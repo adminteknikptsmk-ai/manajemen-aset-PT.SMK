@@ -59,6 +59,7 @@ export function TemplateSettings() {
   // New Version Upload modal/state
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadFileObj, setUploadFileObj] = useState<File | null>(null);
+  const [uploadDriveUrl, setUploadDriveUrl] = useState('');
   const [uploadNotes, setUploadNotes] = useState('');
   const [uploadVersionName, setUploadVersionName] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -248,41 +249,56 @@ export function TemplateSettings() {
   // Upload new version handler
   const handleUploadNewVersion = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadFileObj) {
-      alert('Pilih file template terlebih dahulu.');
-      return;
-    }
-
-    const lowerName = uploadFileObj.name.toLowerCase();
-    const isPdf = lowerName.endsWith('.pdf');
-    const isDocx = lowerName.endsWith('.docx');
-    const isXlsx = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls');
-    const isImage = lowerName.endsWith('.png') || lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg') || lowerName.endsWith('.webp');
-
-    if (!isPdf && !isDocx && !isXlsx && !isImage) {
-      alert('Format file tidak didukung. Harap unggah file .pdf, .docx, .xlsx, atau gambar (.png, .jpg)');
+    if (!uploadFileObj && !uploadDriveUrl.trim()) {
+      alert('Pilih file template atau masukkan link Google Drive terlebih dahulu.');
       return;
     }
 
     setIsUploading(true);
     try {
-      const folder = `templates/${activeType}`;
-      const downloadUrl = await uploadFile(uploadFileObj, folder);
-      const fileType: 'pdf' | 'docx' | 'xlsx' = isXlsx ? 'xlsx' : isDocx ? 'docx' : 'pdf';
-
-      // Extract placeholders initially
+      let downloadUrl = '';
+      let fileName = '';
+      let fileType: 'pdf' | 'docx' | 'xlsx' = 'pdf';
       let detected: string[] = [];
-      try {
-        const buffer = await uploadFileObj.arrayBuffer();
-        detected = await extractPlaceholdersFromTemplate(buffer, uploadFileObj.name);
-      } catch {
-        // ignore scan error
+
+      if (uploadDriveUrl.trim()) {
+        downloadUrl = uploadDriveUrl.trim();
+        if (!downloadUrl.startsWith('http://') && !downloadUrl.startsWith('https://')) {
+          downloadUrl = 'https://' + downloadUrl;
+        }
+        fileName = uploadVersionName || `Template ${activeType.toUpperCase()} (Link Google Drive)`;
+        fileType = 'pdf';
+      } else if (uploadFileObj) {
+        const lowerName = uploadFileObj.name.toLowerCase();
+        const isPdf = lowerName.endsWith('.pdf');
+        const isDocx = lowerName.endsWith('.docx');
+        const isXlsx = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls');
+        const isImage = lowerName.endsWith('.png') || lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg') || lowerName.endsWith('.webp');
+
+        if (!isPdf && !isDocx && !isXlsx && !isImage) {
+          alert('Format file tidak didukung. Harap unggah file .pdf, .docx, .xlsx, atau gambar (.png, .jpg)');
+          setIsUploading(false);
+          return;
+        }
+
+        const folder = `templates/${activeType}`;
+        downloadUrl = await uploadFile(uploadFileObj, folder);
+        fileName = uploadFileObj.name;
+        fileType = isXlsx ? 'xlsx' : isDocx ? 'docx' : 'pdf';
+
+        // Extract placeholders initially
+        try {
+          const buffer = await uploadFileObj.arrayBuffer();
+          detected = await extractPlaceholdersFromTemplate(buffer, uploadFileObj.name);
+        } catch {
+          // ignore scan error
+        }
       }
 
       await saveNewTemplateVersion(
         activeType,
         downloadUrl,
-        uploadFileObj.name,
+        fileName,
         fileType,
         uploadNotes,
         detected,
@@ -291,6 +307,7 @@ export function TemplateSettings() {
 
       setShowUploadModal(false);
       setUploadFileObj(null);
+      setUploadDriveUrl('');
       setUploadNotes('');
       setUploadVersionName('');
       await loadConfig();
@@ -1158,7 +1175,7 @@ export function TemplateSettings() {
             <form onSubmit={handleUploadNewVersion} className="space-y-4 mt-4 text-xs">
               <div>
                 <label className="block font-bold text-slate-800 mb-1">
-                  Pilih File Template / Kop (.pdf, .docx, .xlsx, .png, .jpg) <span className="text-rose-500">*</span>
+                  Opsi 1: Pilih File Template (.pdf, .docx, .xlsx, .png, .jpg)
                 </label>
                 <input
                   type="file"
@@ -1170,15 +1187,33 @@ export function TemplateSettings() {
                       setUploadVersionName(f.name.replace(/\.[^/.]+$/, ''));
                     }
                   }}
-                  required
                   className="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#1C658C] file:text-white hover:file:bg-[#144966] cursor-pointer"
+                />
+              </div>
+
+              <div className="relative flex items-center my-2">
+                <div className="flex-grow border-t border-slate-200"></div>
+                <span className="flex-shrink mx-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">ATAU LEBIH MUDAH</span>
+                <div className="flex-grow border-t border-slate-200"></div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">
+                  Opsi 2: Tempel Tautan Link Google Drive / Cloud File
+                </label>
+                <input
+                  type="url"
+                  value={uploadDriveUrl}
+                  onChange={(e) => setUploadDriveUrl(e.target.value)}
+                  placeholder="https://drive.google.com/file/d/.../view?usp=sharing"
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-amber-50/50 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-amber-500 focus:outline-none"
                 />
                 <p className="text-[11px] text-slate-400 mt-1">
                   {activeType === 'kop_surat' 
-                    ? 'Direkomendasikan file PDF A4 kosong dengan header & footer resmi SMK.' 
+                    ? 'Direkomendasikan file PDF A4 kosong dengan header & footer resmi SMK atau link Google Drive.' 
                     : (activeType === 'bap' || activeType === 'bastp')
-                    ? 'Bisa menggunakan file Excel (.xlsx) dengan token placeholder seperti {{hospitalName}} atau file PDF/DOCX.'
-                    : 'Mendukung file PDF (AcroForm) atau Word (.docx).'}
+                    ? 'Bisa menggunakan file Excel (.xlsx) atau link Google Drive file BAP/BASTP.'
+                    : 'Mendukung file PDF/Word atau link Google Drive.'}
                 </p>
               </div>
 
@@ -1222,7 +1257,7 @@ export function TemplateSettings() {
                 </button>
                 <button
                   type="submit"
-                  disabled={isUploading || !uploadFileObj}
+                  disabled={isUploading || (!uploadFileObj && !uploadDriveUrl.trim())}
                   className="px-5 py-2.5 bg-[#1C658C] hover:bg-[#144966] text-white rounded-xl font-bold flex items-center gap-2 shadow-xs disabled:opacity-50"
                 >
                   {isUploading ? (

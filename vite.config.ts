@@ -11,10 +11,16 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    optimizeDeps: {
+      include: ['xlsx'],
+    },
     build: {
       outDir: 'dist',
       sourcemap: false,
       chunkSizeWarningLimit: 3000,
+      commonjsOptions: {
+        include: [/xlsx/, /node_modules/],
+      },
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

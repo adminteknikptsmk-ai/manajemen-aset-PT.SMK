@@ -57,6 +57,7 @@ interface ScheduleManagerProps {
   onOpenPrintModal: (schedule: CalibrationSchedule) => void;
   onSendReminder: (schedule: CalibrationSchedule) => void;
   onDeleteSchedule?: (scheduleId: string) => void;
+  onNavigateToSelia?: () => void;
 }
 
 export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
@@ -70,7 +71,8 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
   onOpenEditScheduleModal,
   onOpenPrintModal,
   onSendReminder,
-  onDeleteSchedule
+  onDeleteSchedule,
+  onNavigateToSelia
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -148,6 +150,17 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {onNavigateToSelia && (
+            <button
+              onClick={onNavigateToSelia}
+              className="bg-gradient-to-r from-teal-600 to-cyan-700 hover:from-teal-500 hover:to-cyan-600 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all border border-teal-400/40"
+              title="Buka menu Update Perkembangan Setelah Kalibrasi Selesai (Belum Selia / Proses Selia / Cetak Sertifikat)"
+            >
+              <Award className="w-4 h-4 text-teal-200" />
+              <span>⚡ Update Perkembangan Selia & Sertifikat</span>
+            </button>
+          )}
+
           {onOpenSpkModal && (
             <button
               onClick={() => onOpenSpkModal()}

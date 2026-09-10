@@ -34,6 +34,7 @@ interface WorkOrderDetailModalProps {
   onOpenPrintModal: (schedule: CalibrationSchedule) => void;
   onOpenEditModal: (schedule: CalibrationSchedule) => void;
   onSendReminder: (schedule: CalibrationSchedule) => void;
+  onOpenSeliaManager?: () => void;
 }
 
 export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
@@ -42,7 +43,8 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
   onUpdateSchedule,
   onOpenPrintModal,
   onOpenEditModal,
-  onSendReminder
+  onSendReminder,
+  onOpenSeliaManager
 }) => {
   if (!schedule) return null;
 
@@ -303,6 +305,33 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* Banner info for Selia & Certificate Status */}
+            {(schedule.status === 'Sudah Selesai Kalibrasi' || schedule.progressPercent === 100) && (
+              <div className="mt-3 p-3 bg-gradient-to-r from-teal-900/90 to-cyan-950/90 text-white rounded-xl border border-teal-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-md">
+                <div>
+                  <div className="flex items-center gap-1.5 font-bold text-teal-300 text-xs">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>Sudah Selesai Kalibrasi — Siap Proses Selia & Cetak Sertifikat</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-0.5">
+                    Data RS <strong>{schedule.hospitalName}</strong> dapat dikelola di menu <strong>Sistem & Master → Update Perkembangan Setelah Kalibrasi Selesai</strong> untuk mengatur status <em>Belum Selia / Proses Selia / Cetak Sertifikat</em> per alat.
+                  </p>
+                </div>
+                {onOpenSeliaManager && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenSeliaManager();
+                    }}
+                    className="px-3 py-1.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs rounded-lg flex items-center gap-1 shadow-sm transition-all shrink-0"
+                  >
+                    <span>Buka Menu Selia & Sertifikat ➔</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Itemized Device Calibration Table with Quantity */}

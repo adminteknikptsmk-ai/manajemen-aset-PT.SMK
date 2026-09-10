@@ -658,6 +658,7 @@ export default function App() {
                 onOpenPrintModal={(sch) => setPrintSchedule(sch)}
                 onSendReminder={handleSendAutomatedReminder}
                 onDeleteSchedule={handleDeleteSchedule}
+                onNavigateToSelia={() => setActiveTab('masters')}
               />
             </motion.div>
           )}
@@ -849,6 +850,7 @@ export default function App() {
             setShowNewScheduleModal(true);
           }}
           onSendReminder={handleSendAutomatedReminder}
+          onOpenSeliaManager={() => setActiveTab('masters')}
         />
       )}
 

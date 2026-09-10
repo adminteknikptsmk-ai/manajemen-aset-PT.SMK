@@ -1,4 +1,5 @@
-import * as XLSX from 'xlsx';
+import * as XLSXModule from 'xlsx';
+const XLSX = (XLSXModule as any).default || XLSXModule;
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
 export interface ExcelCellData {

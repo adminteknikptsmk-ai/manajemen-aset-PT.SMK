@@ -27,6 +27,7 @@ interface MasterHospitalAndTechProps {
   onUpdateSchedule?: (schedule: CalibrationSchedule) => void;
   onAddTechnician: (technician: Technician) => void;
   onUpdateTechnician: (technician: Technician) => void;
+  initialSubTab?: 'technicians' | 'marketing' | 'management' | 'post_calibration';
   onDeleteTechnician?: (technicianId: string) => void;
   onAddMarketing?: (marketing: MarketingStaff) => void;
   onDeleteMarketing?: (marketingId: string) => void;
@@ -42,6 +43,7 @@ export const MasterHospitalAndTech: React.FC<MasterHospitalAndTechProps> = ({
   technicians,
   marketingList = [],
   schedules = [],
+  initialSubTab = 'post_calibration',
   onUpdateSchedule,
   onAddTechnician,
   onUpdateTechnician,
@@ -49,7 +51,7 @@ export const MasterHospitalAndTech: React.FC<MasterHospitalAndTechProps> = ({
   onAddMarketing,
   onDeleteMarketing
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'technicians' | 'marketing' | 'management' | 'post_calibration'>('technicians');
+  const [activeSubTab, setActiveSubTab] = useState<'technicians' | 'marketing' | 'management' | 'post_calibration'>(initialSubTab);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddTechModal, setShowAddTechModal] = useState(false);
   const [showAddMarketingModal, setShowAddMarketingModal] = useState(false);
@@ -195,7 +197,7 @@ export const MasterHospitalAndTech: React.FC<MasterHospitalAndTechProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-bold text-white">
-                  Master Data Tim Teknisi & Personel
+                  Master Data & Perkembangan Selia / Sertifikat
                 </h1>
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300 font-mono">
                   PT. SARANA MULTI KALIBRASI
@@ -281,12 +283,12 @@ export const MasterHospitalAndTech: React.FC<MasterHospitalAndTechProps> = ({
             onClick={() => setActiveSubTab('post_calibration')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all ${
               activeSubTab === 'post_calibration'
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-gradient-to-r from-cyan-600 to-teal-600 text-white shadow-md border border-cyan-400/50'
+                : 'bg-cyan-950/80 text-cyan-300 hover:bg-cyan-900 border border-cyan-800/60'
             }`}
           >
-            <FileCheck className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Update Perkembangan Setelah Kalibrasi Selesai</span>
+            <FileCheck className="w-3.5 h-3.5 text-cyan-300 animate-pulse" />
+            <span>Update Perkembangan Setelah Kalibrasi Selesai (Proses Selia & Sertifikat)</span>
           </button>
         </div>
 

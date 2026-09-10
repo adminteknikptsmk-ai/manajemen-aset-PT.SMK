@@ -16,6 +16,7 @@ import {
   Settings,
   Trash2,
   ShieldCheck,
+  Award,
   User
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -147,9 +148,11 @@ export const Navbar: React.FC<NavbarProps> = ({
         },
         {
           id: 'masters',
-          label: 'Master Tim Teknisi',
-          sublabel: '11 Personel Elektromedis & Marketing',
-          icon: Building2
+          label: 'Master & Selia Sertifikat',
+          sublabel: 'Proses Selia, Sertifikat, RS & Teknisi',
+          icon: Award,
+          badgeVal: 'Proses Selia',
+          badgeColor: 'bg-cyan-950 text-cyan-300 border-cyan-500/40'
         },
         {
           id: 'templates',

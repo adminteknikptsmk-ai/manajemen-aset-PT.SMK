@@ -15,16 +15,6 @@ export default defineConfig(() => {
       outDir: 'dist',
       sourcemap: false,
       chunkSizeWarningLimit: 3000,
-      rollupOptions: {
-        output: {
-          manualChunks: {
-            vendor: ['react', 'react-dom'],
-            icons: ['lucide-react'],
-            pdf: ['pdf-lib', 'jspdf', 'jspdf-autotable'],
-            docx: ['docxtemplater', 'pizzip', 'xlsx', 'pako']
-          }
-        }
-      }
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

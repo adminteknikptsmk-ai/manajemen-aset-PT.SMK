@@ -1,12 +1,52 @@
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { saveAs } from 'file-saver';
-import { PDFDocument, PDFRawStream } from 'pdf-lib';
+import { PDFDocument, PDFRawStream, StandardFonts, rgb } from 'pdf-lib';
 import * as pako from 'pako';
 import { fillExcelTemplate, convertExcelToPdfBytes, extractPlaceholdersFromExcel } from './excelTemplateService';
 
 /**
- * Downloads a file as an array buffer.
+ * Extracts Google Drive File ID from various Google Drive / Docs / Sheets / Slides link formats.
+ */
+export function extractGoogleDriveFileId(url: string): string | null {
+  if (!url || typeof url !== 'string') return null;
+  const matchD = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (matchD && matchD[1]) return matchD[1];
+
+  const matchId = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (matchId && matchId[1]) return matchId[1];
+
+  return null;
+}
+
+/**
+ * Transforms a Google Drive view URL into a direct download / PDF export stream URL.
+ */
+export function transformGoogleDriveUrl(url: string): string {
+  if (!url || typeof url !== 'string') return url;
+
+  if (url.includes('docs.google.com/document/d/')) {
+    const fileId = extractGoogleDriveFileId(url);
+    if (fileId) return `https://docs.google.com/document/d/${fileId}/export?format=pdf`;
+  }
+
+  if (url.includes('docs.google.com/spreadsheets/d/')) {
+    const fileId = extractGoogleDriveFileId(url);
+    if (fileId) return `https://docs.google.com/spreadsheets/d/${fileId}/export?format=xlsx`;
+  }
+
+  if (url.includes('drive.google.com')) {
+    const fileId = extractGoogleDriveFileId(url);
+    if (fileId) {
+      return `https://drive.google.com/uc?export=download&id=${fileId}`;
+    }
+  }
+
+  return url;
+}
+
+/**
+ * Downloads a file as an array buffer with Google Drive support and HTML response detection.
  */
 export async function fetchFile(url: string): Promise<ArrayBuffer> {
   if (url.startsWith('data:')) {
@@ -18,9 +58,39 @@ export async function fetchFile(url: string): Promise<ArrayBuffer> {
     }
     return bytes.buffer;
   }
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to fetch template: ${res.statusText}`);
-  return await res.arrayBuffer();
+
+  const directUrl = transformGoogleDriveUrl(url);
+
+  let res: Response;
+  try {
+    res = await fetch(directUrl);
+  } catch (err) {
+    if (directUrl !== url) {
+      res = await fetch(url);
+    } else {
+      throw err;
+    }
+  }
+
+  if (!res.ok) throw new Error(`Gagal mengunduh file template (${res.status} ${res.statusText})`);
+  
+  const buffer = await res.arrayBuffer();
+
+  // Inspect first 300 bytes for HTML response (Google Drive view page or permission error)
+  const headerText = new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(buffer.slice(0, 300))).trim();
+  if (
+    headerText.toLowerCase().includes('<!doctype html') || 
+    headerText.toLowerCase().includes('<html') || 
+    headerText.toLowerCase().includes('google drive -')
+  ) {
+    const fileId = extractGoogleDriveFileId(url);
+    if (fileId) {
+      throw new Error(`LINK_GOOGLE_DRIVE_HTML:${fileId}`);
+    }
+    throw new Error('File template mengembalikan halaman web HTML. Harap pastikan file memilliki akses publik (Anyone with link).');
+  }
+
+  return buffer;
 }
 
 /**
@@ -175,6 +245,126 @@ function buildReplacementDictionary(data: Record<string, any>, mappings?: Record
 }
 
 /**
+ * Creates a clean default A4 PDF document containing header & system data fields.
+ * Used as a fallback when a PDF template cannot be loaded directly (e.g. Google Drive link or corrupted file).
+ */
+export async function createCleanDefaultPdf(
+  data: Record<string, any>,
+  mappings?: Record<string, string>,
+  signatureDataUrl?: string
+): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([595.28, 841.89]); // A4 Size
+  const { width, height } = page.getSize();
+  
+  const fontBold = await pdfDoc.embedStandardFont(StandardFonts.HelveticaBold);
+  const fontRegular = await pdfDoc.embedStandardFont(StandardFonts.Helvetica);
+
+  // Header Banner
+  page.drawRectangle({
+    x: 0,
+    y: height - 70,
+    width,
+    height: 70,
+    color: rgb(0.11, 0.4, 0.55),
+  });
+
+  page.drawText('PT. SARANA MULTI KALIBRASI', {
+    x: 40,
+    y: height - 35,
+    size: 16,
+    font: fontBold,
+    color: rgb(1, 1, 1),
+  });
+
+  page.drawText('Laboratorium Uji & Kalibrasi Alat Kesehatan • LK-532-IDN', {
+    x: 40,
+    y: height - 52,
+    size: 9,
+    font: fontRegular,
+    color: rgb(0.85, 0.95, 1),
+  });
+
+  // Title
+  const docTitle = String(data.subject || data.documentTitle || 'DOKUMEN HASIL SIMULASI KALIBRASI').toUpperCase();
+  page.drawText(docTitle, {
+    x: 40,
+    y: height - 100,
+    size: 12,
+    font: fontBold,
+    color: rgb(0.1, 0.1, 0.1),
+  });
+
+  page.drawLine({
+    start: { x: 40, y: height - 108 },
+    end: { x: width - 40, y: height - 108 },
+    thickness: 1.5,
+    color: rgb(0.11, 0.4, 0.55),
+  });
+
+  const replacementDict = buildReplacementDictionary(data, mappings);
+  let currentY = height - 135;
+
+  // Print system data entries
+  const skipKeys = new Set(['id', 'items', 'signatureImage', 'signatureUrl', 'mtSignatureUrl', 'signature']);
+  
+  for (const [key, val] of Object.entries(replacementDict)) {
+    if (!val || skipKeys.has(key) || key.startsWith('{{') || key.length > 35) continue;
+    if (currentY < 120) break;
+
+    const labelKey = key.replace(/_/g, ' ').toUpperCase();
+    page.drawText(`${labelKey}:`, {
+      x: 45,
+      y: currentY,
+      size: 9,
+      font: fontBold,
+      color: rgb(0.2, 0.35, 0.45),
+    });
+
+    const displayVal = String(val).replace(/\n/g, ' ').substring(0, 75);
+    page.drawText(displayVal, {
+      x: 210,
+      y: currentY,
+      size: 9,
+      font: fontRegular,
+      color: rgb(0.1, 0.1, 0.1),
+    });
+
+    currentY -= 18;
+  }
+
+  // Footer Signature Section
+  const targetSig = signatureDataUrl || data?.signatureImage || data?.signatureUrl || data?.mtSignatureUrl || data?.signature;
+  if (targetSig && targetSig.startsWith('data:image/')) {
+    try {
+      const isPng = targetSig.includes('image/png');
+      const base64Data = targetSig.split(',')[1];
+      const sigBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+      const sigImg = isPng ? await pdfDoc.embedPng(sigBytes) : await pdfDoc.embedJpg(sigBytes);
+      
+      page.drawText('Manajemen Teknik / Petugas:', {
+        x: width - 210,
+        y: 110,
+        size: 9,
+        font: fontBold,
+        color: rgb(0.2, 0.2, 0.2),
+      });
+
+      page.drawImage(sigImg, {
+        x: width - 210,
+        y: 45,
+        width: 120,
+        height: 50,
+      });
+    } catch {
+      // Signature embed fallback
+    }
+  }
+
+  return await pdfDoc.save();
+}
+
+/**
  * Injects data into a PDF template using AcroForm filling and stream search-and-replace.
  * Also supports overlaying onto uploaded Kop Surat (blank A4 letterhead).
  */
@@ -185,7 +375,13 @@ export async function searchAndReplaceInPdf(
   signatureDataUrl?: string,
   letterheadUrl?: string | null
 ): Promise<Uint8Array> {
-  let pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+  let pdfDoc: PDFDocument;
+  try {
+    pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+  } catch (pdfErr) {
+    console.warn('Could not load PDF template bytes directly, generating clean default PDF:', pdfErr);
+    return await createCleanDefaultPdf(data, mappings, signatureDataUrl);
+  }
 
   // If a custom Kop Surat letterhead is configured, blend it behind page 1
   if (letterheadUrl) {
@@ -445,28 +641,52 @@ export async function generateDocumentBytes(
   mappings?: Record<string, string>,
   signatureDataUrl?: string,
   letterheadUrl?: string | null
-): Promise<{ blob: Blob; url: string; extension: 'pdf' | 'docx' | 'xlsx' }> {
-  const arrayBuffer = await fetchFile(templateUrl);
-  const isDocx = templateUrl.toLowerCase().includes('.docx');
-  const isExcel = templateUrl.toLowerCase().includes('.xlsx') || templateUrl.toLowerCase().includes('.xls');
+): Promise<{ 
+  blob: Blob; 
+  url: string; 
+  extension: 'pdf' | 'docx' | 'xlsx';
+  isGoogleDriveLink?: boolean;
+  googleDriveFileId?: string;
+}> {
+  const gdriveId = extractGoogleDriveFileId(templateUrl);
+  const isGdrive = !!gdriveId || templateUrl.includes('drive.google.com') || templateUrl.includes('docs.google.com');
 
-  if (isDocx) {
-    const blob = await generateFromDocxTemplateBytes(arrayBuffer, data, mappings);
-    const url = URL.createObjectURL(blob);
-    return { blob, url, extension: 'docx' };
-  } else if (isExcel) {
-    // Fill Excel template data, then convert directly to professional PDF!
-    const filledExcelBuffer = fillExcelTemplate(arrayBuffer, data, mappings);
-    const pdfBytes = await convertExcelToPdfBytes(filledExcelBuffer, letterheadUrl, data.subject || data.hospitalName || 'DOKUMEN BERITA ACARA');
+  try {
+    const arrayBuffer = await fetchFile(templateUrl);
+    const isDocx = templateUrl.toLowerCase().includes('.docx');
+    const isExcel = templateUrl.toLowerCase().includes('.xlsx') || templateUrl.toLowerCase().includes('.xls');
+
+    if (isDocx) {
+      const blob = await generateFromDocxTemplateBytes(arrayBuffer, data, mappings);
+      const url = URL.createObjectURL(blob);
+      return { blob, url, extension: 'docx', isGoogleDriveLink: isGdrive, googleDriveFileId: gdriveId || undefined };
+    } else if (isExcel) {
+      // Fill Excel template data, then convert directly to professional PDF!
+      const filledExcelBuffer = fillExcelTemplate(arrayBuffer, data, mappings);
+      const pdfBytes = await convertExcelToPdfBytes(filledExcelBuffer, letterheadUrl, data.subject || data.hospitalName || 'DOKUMEN BERITA ACARA');
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      return { blob, url, extension: 'pdf', isGoogleDriveLink: isGdrive, googleDriveFileId: gdriveId || undefined };
+    } else {
+      // PDF Template (with optional Kop Surat letterhead background)
+      const pdfBytes = await searchAndReplaceInPdf(arrayBuffer, data, mappings, signatureDataUrl, letterheadUrl);
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      return { blob, url, extension: 'pdf', isGoogleDriveLink: isGdrive, googleDriveFileId: gdriveId || undefined };
+    }
+  } catch (err: any) {
+    console.warn('Could not process template directly from URL, fallback to clean PDF generator:', err);
+    // Automatic fallback for Google Drive URLs, CORS errors, or HTML pages
+    const pdfBytes = await createCleanDefaultPdf(data, mappings, signatureDataUrl);
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
-    return { blob, url, extension: 'pdf' };
-  } else {
-    // PDF Template (with optional Kop Surat letterhead background)
-    const pdfBytes = await searchAndReplaceInPdf(arrayBuffer, data, mappings, signatureDataUrl, letterheadUrl);
-    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    return { blob, url, extension: 'pdf' };
+    return { 
+      blob, 
+      url, 
+      extension: 'pdf', 
+      isGoogleDriveLink: true, 
+      googleDriveFileId: gdriveId || undefined 
+    };
   }
 }
 

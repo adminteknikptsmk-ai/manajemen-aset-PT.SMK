@@ -14,10 +14,13 @@ import {
   FileText,
   Award,
   Check,
-  Edit3
+  Edit3,
+  LayoutDashboard,
+  Layers
 } from 'lucide-react';
 import { CalibrationSchedule, DeviceSeliaItem, SeliaStatus } from '../types';
 import { ensureDeviceSeliaItems, formatIndonesianDate, TODAY_STR } from '../utils/helpers';
+import { SeliaDashboard } from './SeliaDashboard';
 
 interface PostCalibrationSeliaManagerProps {
   schedules: CalibrationSchedule[];
@@ -28,6 +31,8 @@ export const PostCalibrationSeliaManager: React.FC<PostCalibrationSeliaManagerPr
   schedules,
   onUpdateSchedule
 }) => {
+  const [viewMode, setViewMode] = useState<'dashboard' | 'per_hospital'>('dashboard');
+
   // Filter schedules that have finished calibration or are in selia review
   const completedSchedules = schedules.filter(s => 
     s.status === 'Selesai Kalibrasi' || 
@@ -44,6 +49,90 @@ export const PostCalibrationSeliaManager: React.FC<PostCalibrationSeliaManagerPr
   const [filterSeliaStatus, setFilterSeliaStatus] = useState<string>('all');
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
 
+  return (
+    <div className="space-y-6">
+      {/* View Switcher Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900 p-3.5 rounded-2xl border border-slate-800 shadow-sm">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setViewMode('dashboard')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+              viewMode === 'dashboard'
+                ? 'bg-gradient-to-r from-cyan-600 to-teal-600 text-white shadow-md border border-cyan-400/50'
+                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <LayoutDashboard className="w-4 h-4 text-cyan-300" />
+            <span>⚡ Selia Dashboard (Pemetaan Alat Medis & Sertifikat)</span>
+          </button>
+
+          <button
+            onClick={() => setViewMode('per_hospital')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+              viewMode === 'per_hospital'
+                ? 'bg-gradient-to-r from-cyan-600 to-teal-600 text-white shadow-md border border-cyan-400/50'
+                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Layers className="w-4 h-4 text-cyan-300" />
+            <span>Tampilan Rincian Per RS</span>
+          </button>
+        </div>
+
+        <div className="text-xs text-slate-400 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>{completedSchedules.length} Jadwal Selesai Kalibrasi</span>
+        </div>
+      </div>
+
+      {viewMode === 'dashboard' ? (
+        <SeliaDashboard schedules={schedules} onUpdateSchedule={onUpdateSchedule} />
+      ) : (
+        <PerHospitalSeliaView 
+          schedules={schedules}
+          completedSchedules={completedSchedules}
+          selectedScheduleId={selectedScheduleId}
+          setSelectedScheduleId={setSelectedScheduleId}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          filterSeliaStatus={filterSeliaStatus}
+          setFilterSeliaStatus={setFilterSeliaStatus}
+          savedNotice={savedNotice}
+          setSavedNotice={setSavedNotice}
+          onUpdateSchedule={onUpdateSchedule}
+        />
+      )}
+    </div>
+  );
+};
+
+interface PerHospitalSeliaViewProps {
+  schedules: CalibrationSchedule[];
+  completedSchedules: CalibrationSchedule[];
+  selectedScheduleId: string;
+  setSelectedScheduleId: (id: string) => void;
+  searchQuery: string;
+  setSearchQuery: (q: string) => void;
+  filterSeliaStatus: string;
+  setFilterSeliaStatus: (s: string) => void;
+  savedNotice: string | null;
+  setSavedNotice: (msg: string | null) => void;
+  onUpdateSchedule: (schedule: CalibrationSchedule) => void;
+}
+
+const PerHospitalSeliaView: React.FC<PerHospitalSeliaViewProps> = ({
+  schedules,
+  completedSchedules,
+  selectedScheduleId,
+  setSelectedScheduleId,
+  searchQuery,
+  setSearchQuery,
+  filterSeliaStatus,
+  setFilterSeliaStatus,
+  savedNotice,
+  setSavedNotice,
+  onUpdateSchedule
+}) => {
   const activeSchedule = schedules.find(s => s.id === selectedScheduleId) || completedSchedules[0] || schedules[0];
 
   if (!activeSchedule) {

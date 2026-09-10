@@ -45,10 +45,14 @@ export function transformGoogleDriveUrl(url: string): string {
   return url;
 }
 
+import { getLocalBlob } from './localBlobStorage';
+
 /**
  * Downloads a file as an array buffer with Google Drive support and HTML response detection.
  */
-export async function fetchFile(url: string): Promise<ArrayBuffer> {
+export async function fetchFile(rawUrl: string): Promise<ArrayBuffer> {
+  const url = rawUrl.startsWith('idb://') ? await getLocalBlob(rawUrl) : rawUrl;
+
   if (url.startsWith('data:')) {
     const base64 = url.split(',')[1];
     const binary = atob(base64);

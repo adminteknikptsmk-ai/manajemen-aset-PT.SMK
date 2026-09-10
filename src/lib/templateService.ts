@@ -316,12 +316,14 @@ export const getTemplates = async (): Promise<LegacyDocumentTemplates> => {
   };
 };
 
+import { saveLocalBlob } from './localBlobStorage';
+
 /**
  * Save new template version and set as active
  */
 export const saveNewTemplateVersion = async (
   type: TemplateDocType,
-  fileUrl: string,
+  rawFileUrl: string,
   fileName: string,
   fileType: 'pdf' | 'docx' | 'xlsx',
   notes: string = '',
@@ -338,6 +340,12 @@ export const saveNewTemplateVersion = async (
 
     const newVersionId = `v${nextVersionNumber}_${Date.now()}`;
     const newVersionName = customName || `Versi ${nextVersionNumber} (${fileName})`;
+
+    // If fileUrl is a large Base64 string (>200KB), store locally in IndexedDB to avoid Firestore 1MB doc limit
+    let fileUrl = rawFileUrl;
+    if (rawFileUrl.startsWith('data:') && rawFileUrl.length > 200000) {
+      fileUrl = await saveLocalBlob(newVersionId, rawFileUrl);
+    }
 
     const initialMappings: Record<string, string> = { ...(typeConfig.mappings || {}) };
     detectedPlaceholders.forEach(token => {

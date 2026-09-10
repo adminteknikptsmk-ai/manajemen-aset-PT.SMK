@@ -319,7 +319,8 @@ export function TemplateSettings() {
       await loadConfig();
     } catch (error) {
       console.error('Failed to upload version:', error);
-      alert('Gagal mengunggah versi template baru.');
+      const msg = error instanceof Error ? error.message : String(error);
+      alert(`Gagal mengunggah versi template baru: ${msg}`);
     } finally {
       setIsUploading(false);
     }

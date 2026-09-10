@@ -2,7 +2,7 @@ import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { saveAs } from 'file-saver';
 import { PDFDocument, PDFRawStream } from 'pdf-lib';
-import pako from 'pako';
+import * as pako from 'pako';
 import { fillExcelTemplate, convertExcelToPdfBytes, extractPlaceholdersFromExcel } from './excelTemplateService';
 
 /**

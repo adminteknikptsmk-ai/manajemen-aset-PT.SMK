@@ -42,7 +42,7 @@ import {
   generateWhatsAppMessage,
   TODAY_STR
 } from '../utils/helpers';
-import { exportSpkToWord, exportBapToWord, exportBastpToWord } from '../utils/spkWordExport';
+import { exportSpkToWord, exportBapToWord } from '../utils/spkWordExport';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
 interface ScheduleManagerProps {
@@ -612,18 +612,6 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
                               title="Lihat PDF BAP"
                             >
                               <Briefcase className="w-3.5 h-3.5" />
-                            </a>
-                          )}
-
-                          {sch.bastpPdfUrl && (
-                            <a
-                              href={sch.bastpPdfUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="bg-purple-600 hover:bg-purple-700 text-white p-1.5 rounded-lg text-xs transition-colors"
-                              title="Lihat PDF BASTP"
-                            >
-                              <Award className="w-3.5 h-3.5" />
                             </a>
                           )}
 

@@ -39,7 +39,7 @@ export const TabletLoanModal: React.FC<TabletLoanModalProps> = ({
     'Pengujian Keselamatan Listrik (Electrical Safety Analyzer - ESA)',
     'Kalibrasi Ruang ICU, NICU & Kamar Operasi (OK)',
     'Verifikasi Audit Mutu Internal & Akreditasi KAN LK-532-IDN',
-    'Input Berita Acara (BAP & BASTP) & Dokumentasi Fisik Alat',
+    'Input Berita Acara (BAP) & Dokumentasi Fisik Alat',
     'Uji Fungsi & Kalibrasi Ventilator / Defibrillator'
   ];
 

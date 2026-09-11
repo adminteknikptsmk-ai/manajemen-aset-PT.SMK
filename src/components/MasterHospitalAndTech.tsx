@@ -518,7 +518,7 @@ export const MasterHospitalAndTech: React.FC<MasterHospitalAndTechProps> = ({
               <div className="space-y-2 text-xs text-slate-300 border-t border-slate-800 pt-3">
                 <div className="flex justify-between">
                   <span className="text-slate-400">Penandatangan Legal:</span>
-                  <span className="text-slate-200 font-medium">Surat Penawaran Harga (SPH) & BASTP</span>
+                  <span className="text-slate-200 font-medium">Surat Penawaran Harga (SPH)</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Kontak Kantor:</span>

@@ -34,7 +34,7 @@ interface WorkOrderPrintModalProps {
   onOpenEditForm?: (schedule: CalibrationSchedule) => void;
 }
 
-export type DocumentTab = 'SPK' | 'BAP' | 'BASTP' | 'ALL';
+export type DocumentTab = 'SPK' | 'BAP' | 'ALL';
 
 export const WorkOrderPrintModal: React.FC<WorkOrderPrintModalProps> = ({
   schedule,
@@ -209,21 +209,6 @@ export const WorkOrderPrintModal: React.FC<WorkOrderPrintModalProps> = ({
               )}
             </button>
 
-            {activeDoc !== 'ALL' && (
-              <button
-                onClick={handleGenerateTemplate}
-                disabled={isGenerating}
-                className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all disabled:opacity-50"
-              >
-                {isGenerating ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                ) : (
-                  <Wand2 className="w-4 h-4" />
-                )}
-                <span>Generate dari Template</span>
-              </button>
-            )}
-
             {onOpenEditForm && (
               <button
                 type="button"
@@ -242,11 +227,9 @@ export const WorkOrderPrintModal: React.FC<WorkOrderPrintModalProps> = ({
               onClick={() => {
                 if (activeDoc === 'SPK') exportSpkToWord(schedule);
                 else if (activeDoc === 'BAP') exportBapToWord(schedule);
-                else if (activeDoc === 'BASTP') exportBastpToWord(schedule);
                 else {
                   exportSpkToWord(schedule);
                   setTimeout(() => exportBapToWord(schedule), 300);
-                  setTimeout(() => exportBastpToWord(schedule), 600);
                 }
               }}
               className="bg-[#398AB9] hover:bg-[#1C658C] active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
@@ -275,7 +258,7 @@ export const WorkOrderPrintModal: React.FC<WorkOrderPrintModalProps> = ({
           </div>
         </div>
 
-        {/* Tab Switcher for 3 Separated Documents (HIDDEN ON PRINT) */}
+        {/* Tab Switcher for Separated Documents (HIDDEN ON PRINT) */}
         <div className="flex flex-wrap items-center gap-2 p-1.5 bg-[#EEEEEE] rounded-xl mb-6 border border-[#D8D2CB] print:hidden">
           <button
             onClick={() => setActiveDoc('SPK')}
@@ -302,25 +285,13 @@ export const WorkOrderPrintModal: React.FC<WorkOrderPrintModalProps> = ({
           </button>
 
           <button
-            onClick={() => setActiveDoc('BASTP')}
-            className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-              activeDoc === 'BASTP'
-                ? 'bg-white text-[#1C658C] shadow-xs border border-[#D8D2CB]'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-          >
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            <span>3. Berita Acara Kalibrasi (BASTP)</span>
-          </button>
-
-          <button
             onClick={() => setActiveDoc('ALL')}
             className={`py-2.5 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
               activeDoc === 'ALL'
                 ? 'bg-[#1C658C] text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
             }`}
-            title="Tampilkan & Cetak Seluruh Paket Dokumen (SPK + BAP + BASTP)"
+            title="Tampilkan & Cetak Seluruh Paket Dokumen (SPK + BAP)"
           >
             <Layers className="w-4 h-4" />
             <span>Paket Lengkap</span>
@@ -682,146 +653,6 @@ export const WorkOrderPrintModal: React.FC<WorkOrderPrintModalProps> = ({
               <p>**Alat dilakukan Uji dan/atau Kalibrasi di Lab. PT. Sarana Multi Kalibrasi</p>
               <p>***Alat dilakukan subkontraktor pekerjaan</p>
             </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* DOCUMENT 3: BERITA ACARA KALIBRASI (BASTP) - SESUAI FORMAT PDF SCAN 2     */}
-        {/* ========================================================================= */}
-        {(activeDoc === 'BASTP' || activeDoc === 'ALL') && (
-          <div className="doc-section bastp-document text-slate-900 font-sans space-y-3 bg-white print:p-0 print:space-y-3 print-page-clean print-no-break-after">
-            {/* Kop Resmi PT. Sarana Multi Kalibrasi (Sesuai PDF Kop Surat) */}
-            <OfficialLetterhead className="mb-2" />
-
-            {/* Judul Berita Acara Kalibrasi */}
-            <div className="text-center py-1 bg-[#398AB9] text-white print:bg-[#398AB9] print:text-white" style={{ WebkitPrintColorAdjust: 'exact', colorAdjust: 'exact' }}>
-              <h2 className="text-base sm:text-lg font-black tracking-widest uppercase">
-                BERITA ACARA KALIBRASI
-              </h2>
-              <h3 className="font-bold uppercase tracking-wider">{schedule.hospitalName}</h3>
-            </div>
-
-            {/* Tabel Identitas Order / Customer */}
-            <table className="w-full text-xs border border-slate-900 border-collapse">
-              <tbody>
-                <tr className="border-b border-slate-900">
-                  <td className="p-1 font-semibold border-r border-slate-900 w-32">No.Order</td>
-                  <td className="p-1 font-mono border-r border-slate-900 w-64">{spkNumber}</td>
-                  <td className="p-1 font-semibold text-center border-r border-slate-900 w-64">PT. Sarana Multi Kalibrasi</td>
-                  <td className="p-1 font-semibold text-center uppercase text-[10px]">{schedule.hospitalName}</td>
-                </tr>
-                <tr className="border-b border-slate-900">
-                  <td className="p-1 font-semibold border-r border-slate-900">Nama Customer</td>
-                  <td className="p-1 font-bold border-r border-slate-900 uppercase text-[10px]">{schedule.hospitalName}</td>
-                  <td rowSpan={3} className="p-1 border-r border-slate-900 text-center align-bottom h-24 relative">
-                    <div className="absolute inset-0 flex items-center justify-center opacity-40 pointer-events-none">
-                      <CompanyLogo size="sm" variant="dark" />
-                    </div>
-                    {digitalSignatureUrl && (
-                      <div className="absolute inset-x-0 bottom-6 flex items-center justify-center z-10 pointer-events-none">
-                        <img 
-                          src={digitalSignatureUrl} 
-                          alt="Tanda Tangan PT SMK" 
-                          className="h-12 max-w-[140px] object-contain" 
-                        />
-                      </div>
-                    )}
-                    <div className="relative z-10 font-bold border-t border-slate-900 mx-4 pt-0.5 mt-16">
-                      {schedule.leadTechnicianName || 'Hafizh Pasifianto Utomo, S.Tr.T.'}
-                    </div>
-                  </td>
-                  <td rowSpan={3} className="p-1 text-center align-bottom h-24">
-                    <div className="font-bold border-t border-slate-900 mx-4 pt-0.5 mt-16">
-                      (........................................................)
-                    </div>
-                  </td>
-                </tr>
-                <tr className="border-b border-slate-900">
-                  <td className="p-1 font-semibold border-r border-slate-900">No.tlpn/Fax</td>
-                  <td className="p-1 font-mono border-r border-slate-900">{schedule.hospitalPhone || '-'}</td>
-                </tr>
-                <tr>
-                  <td className="p-1 font-semibold border-r border-slate-900 align-top">Alamat Lengkap</td>
-                  <td className="p-1 border-r border-slate-900 align-top">{hospitalAddress}</td>
-                </tr>
-              </tbody>
-            </table>
-
-            {/* Tabel Data Kalibrasi Lengkap */}
-            <div className="overflow-x-auto pt-1">
-              <table className="w-full text-left text-[11px] border border-slate-900 border-collapse">
-                <thead>
-                  <tr className="bg-slate-100 text-slate-900 border-b border-slate-900 font-bold text-center italic">
-                    <th className="p-1 border-r border-slate-900 w-8">No</th>
-                    <th className="p-1 border-r border-slate-900">Nama Alat</th>
-                    <th className="p-1 border-r border-slate-900">Merk</th>
-                    <th className="p-1 border-r border-slate-900">Tipe</th>
-                    <th className="p-1 border-r border-slate-900">No. Seri</th>
-                    <th className="p-1 border-r border-slate-900">Petugas</th>
-                    <th className="p-1 border-r border-slate-900">Tanggal Kalibrasi</th>
-                    <th className="p-1 border-r border-slate-900">Ruangan</th>
-                    <th className="p-1 w-24">Keterangan</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-900">
-                  {schedule.targetDevices.map((d, idx) => (
-                    <tr key={d.id} className="border-b border-slate-900 text-center">
-                      <td className="p-1 border-r border-slate-900">{idx + 1}</td>
-                      <td className="p-1 border-r border-slate-900 text-left italic">{d.name}</td>
-                      <td className="p-1 border-r border-slate-900 uppercase">{d.brandModel.split(' ')[0] || '-'}</td>
-                      <td className="p-1 border-r border-slate-900">{d.brandModel.split(' ').slice(1).join(' ') || '-'}</td>
-                      <td className="p-1 border-r border-slate-900 font-mono">{d.serialNumber || '-'}</td>
-                      <td className="p-1 border-r border-slate-900 italic">{schedule.leadTechnicianName || 'Hafizh Pasifianto Utomo, S.Tr.T.'}</td>
-                      <td className="p-1 border-r border-slate-900">{formatIndonesianDate(schedule.scheduledDate)}</td>
-                      <td className="p-1 border-r border-slate-900 capitalize">{d.room}</td>
-                      <td className="p-1 italic">
-                        {d.status === 'Pass' ? 'Laik Pakai' : d.status === 'Fail' ? 'Tidak Laik' : 'Proses'}
-                      </td>
-                    </tr>
-                  ))}
-                  {/* Fill empty rows to make it look like a full page if needed, but for now just exact rows */}
-                  {Array.from({ length: Math.max(0, 15 - schedule.targetDevices.length) }).map((_, i) => (
-                    <tr key={`empty-${i}`} className="border-b border-slate-900 h-6">
-                      <td className="border-r border-slate-900"></td>
-                      <td className="border-r border-slate-900"></td>
-                      <td className="border-r border-slate-900"></td>
-                      <td className="border-r border-slate-900"></td>
-                      <td className="border-r border-slate-900"></td>
-                      <td className="border-r border-slate-900"></td>
-                      <td className="border-r border-slate-900"></td>
-                      <td className="border-r border-slate-900"></td>
-                      <td></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Kotak Ringkasan */}
-            <div className="flex justify-start pt-2">
-              <div className="flex gap-4">
-                <table className="w-56 text-[11px] border border-slate-900 border-collapse">
-                  <tbody>
-                    <tr className="border-b border-slate-900">
-                      <td className="p-1 border-r border-slate-900">Jumlah Laik Pakai</td>
-                      <td className="p-1 font-bold text-center w-12">{laikPakaiCount}</td>
-                    </tr>
-                    <tr className="border-b border-slate-900">
-                      <td className="p-1 border-r border-slate-900">Jumlah Tidak Laik Pakai</td>
-                      <td className="p-1 font-bold text-center">{tidakLaikCount}</td>
-                    </tr>
-                    <tr className="font-bold">
-                      <td className="p-1 border-r border-slate-900 text-center">Total Alat</td>
-                      <td className="p-1 font-bold text-center">{totalVolumePO}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <div className="font-bold text-xs mt-1">
-                  TAMBAHAN
-                </div>
-              </div>
-            </div>
-
           </div>
         )}
 

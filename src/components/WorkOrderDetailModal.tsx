@@ -294,15 +294,6 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
                   <Briefcase className="w-3.5 h-3.5" />
                   <span>Cetak BAP</span>
                 </button>
-
-                <button
-                  onClick={() => onOpenPrintModal(schedule)}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-xs transition-colors"
-                  title="Cetak Berita Acara Kalibrasi (BASTP)"
-                >
-                  <Award className="w-3.5 h-3.5" />
-                  <span>Cetak BASTP</span>
-                </button>
               </div>
             </div>
 
@@ -414,26 +405,6 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
                 onRemove={() => {
                   setBapPdfUrl(undefined);
                   onUpdateSchedule({ ...schedule, bapPdfUrl: '' });
-                }}
-              />
-            </div>
-            <div className="bg-[#EEEEEE]/40 p-3.5 rounded-xl border border-[#D8D2CB]">
-              <h4 className="font-bold text-[#1C658C] text-xs flex items-center gap-1.5 mb-1.5">
-                <Award className="w-3.5 h-3.5" />
-                Upload Dokumen BASTP (Scan / PDF)
-              </h4>
-              <PdfUploader 
-                folder="bastp"
-                documentId={schedule.id}
-                existingPdfUrl={bastpPdfUrl}
-                label="Dokumen BASTP (Serah Terima Pekerjaan)"
-                onUploadSuccess={(url) => {
-                  setBastpPdfUrl(url);
-                  onUpdateSchedule({ ...schedule, bastpPdfUrl: url });
-                }}
-                onRemove={() => {
-                  setBastpPdfUrl(undefined);
-                  onUpdateSchedule({ ...schedule, bastpPdfUrl: '' });
                 }}
               />
             </div>

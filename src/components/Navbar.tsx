@@ -168,12 +168,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           icon: Award,
           badgeVal: 'Proses Selia',
           badgeColor: 'bg-cyan-950 text-cyan-300 border-cyan-500/40'
-        },
-        {
-          id: 'templates',
-          label: 'Template Dokumen',
-          sublabel: 'Pengaturan SPH, SPK, BAP',
-          icon: Settings
         }
       ]
     }

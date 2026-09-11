@@ -33,7 +33,7 @@ import { OfficialLetterhead } from './OfficialLetterhead';
 import { OfficialLetterFooter } from './OfficialLetterFooter';
 import { formatRupiah, formatNumber } from '../utils/sphHelpers';
 import { exportSphToWord } from '../utils/sphWordExport';
-import { generateDocumentBytes, createAuthenticSphPdf } from '../lib/templateGenerator';
+import { generateDocumentBytes, createAuthenticSphPdf, paginateSphTableItems } from '../lib/templateGenerator';
 import { PDFDocument } from 'pdf-lib';
 import { getFullTemplatesConfig, DocumentTemplatesConfig } from '../lib/templateService';
 import { getLocalBlob } from '../lib/localBlobStorage';
@@ -124,6 +124,10 @@ export const SphPrintModal: React.FC<SphPrintModalProps> = ({
     year: 'numeric'
   });
 
+  // Dynamic table pagination calculation (matches PDF layout precisely)
+  const itemChunks = paginateSphTableItems(sph.items || []);
+  const dynamicAttachmentText = `${itemChunks.length} Lembar`;
+
   // Helper to build SPH data dictionary
   const buildSphData = useCallback(() => {
     return {
@@ -149,7 +153,7 @@ export const SphPrintModal: React.FC<SphPrintModalProps> = ({
       accommodationFee: formatNumber(sph.accommodationFee || 0),
       grandTotal: formatNumber(sph.grandTotal),
       terbilang: sph.terbilang || 'Nol Rupiah',
-      attachmentPages: sph.attachmentPages || '1 Berkas',
+      attachmentPages: dynamicAttachmentText,
       bankName: sph.bankName || 'Bank Mandiri Cab. Surakarta',
       bankAccountNumber: sph.bankAccountNumber || '138-00-2610846-9',
       bankAccountName: sph.bankAccountName || 'SARANA MULTI KALIBRASI PT',
@@ -163,7 +167,7 @@ export const SphPrintModal: React.FC<SphPrintModalProps> = ({
         totalPrice: formatNumber(it.totalPrice)
       }))
     };
-  }, [sph, formattedDate]);
+  }, [sph, formattedDate, dynamicAttachmentText]);
 
   const generateTemplatePreview = useCallback(async (
     configToUse?: DocumentTemplatesConfig | null,
@@ -278,14 +282,6 @@ export const SphPrintModal: React.FC<SphPrintModalProps> = ({
       setIsExportingPdf(false);
     }
   };
-
-  // Split items across pages (30 items per page for standard A4 matching official SPH layout)
-  const itemsPerPage = 30;
-  const itemChunks: typeof sph.items[] = [];
-  for (let i = 0; i < sph.items.length; i += itemsPerPage) {
-    itemChunks.push(sph.items.slice(i, i + itemsPerPage));
-  }
-  if (itemChunks.length === 0) itemChunks.push([]);
 
   // Calculate total units
   const totalUnits = sph.items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
@@ -684,64 +680,75 @@ export const SphPrintModal: React.FC<SphPrintModalProps> = ({
           </div>
         ) : (
           /* Printable Document Container (Standard Web HTML Mode) */
-          <div className="p-4 sm:p-8 bg-[#EEEEEE]/60 overflow-y-auto space-y-8 print:p-0 print:space-y-0 print:bg-white text-slate-900">
+          <div 
+            style={{ fontFamily: 'Calibri, Carlito, "Segoe UI", Arial, sans-serif' }} 
+            className="p-4 sm:p-8 bg-[#EEEEEE]/60 overflow-y-auto space-y-8 print:p-0 print:space-y-0 print:bg-white text-slate-900"
+          >
             
             {/* ========================================================================= */}
             {/* HALAMAN 1: SURAT PENGANTAR RESMI SPH                                      */}
             {/* ========================================================================= */}
             {(activeViewTab === 'all' || activeViewTab === 'page1') && (
-              <div className={`bg-white text-slate-900 p-8 sm:p-12 rounded-xl shadow-xl max-w-[210mm] mx-auto min-h-[297mm] relative overflow-hidden flex flex-col justify-between print:shadow-none print:rounded-none print:p-0 print:m-0 print:w-full print:min-h-0 print-page-clean ${activeViewTab === 'all' ? 'print-break-after' : 'print-no-break-after'}`}>
+              <div 
+                style={{ fontFamily: 'Calibri, Carlito, "Segoe UI", Arial, sans-serif' }}
+                className={`bg-white text-slate-900 p-6 sm:p-8 rounded-xl shadow-xl max-w-[210mm] mx-auto min-h-[297mm] relative overflow-hidden flex flex-col justify-between print:shadow-none print:rounded-none print:p-0 print:m-0 print:w-full print:min-h-0 print-page-clean ${activeViewTab === 'all' ? 'print-break-after' : 'print-no-break-after'}`}
+              >
                 
                 {/* KOP SURAT RESMI PT SARANA MULTI KALIBRASI (Menggunakan customLetterheadUrl jika ada) */}
                 <div>
                   <OfficialLetterhead customLetterheadUrl={templatesConfig?.kop_surat?.activeUrl} className="mb-4" />
 
                   {/* Surat Meta (Nomor, Perihal, Tanggal, Kepada) */}
-                  <div className="flex justify-between items-start mb-4 text-xs sm:text-[13px] leading-relaxed">
+                  {/* Header Resmi SPH (Nomor, Perihal, Lampiran) */}
+                  <div className="flex justify-between items-start mb-2 text-xs sm:text-[13.5px] leading-relaxed">
                     {/* Sisi Kiri: Nomor, Perihal, Lampiran */}
                     <div className="space-y-0.5">
                       <div className="grid grid-cols-[75px_12px_1fr]">
-                        <span className="font-semibold text-slate-900">Nomor</span>
-                        <span>:</span>
-                        <span className="font-bold text-slate-950">{sph.sphNumber}</span>
+                        <span className="font-bold text-slate-950">Nomor</span>
+                        <span className="font-bold">:</span>
+                        <span className="font-normal text-slate-900">{sph.sphNumber}</span>
                       </div>
                       <div className="grid grid-cols-[75px_12px_1fr]">
-                        <span className="font-semibold text-slate-900">Perihal</span>
-                        <span>:</span>
-                        <span className="font-semibold text-slate-900">{sph.subject || 'Surat Penawaran Harga Kalibrasi'}</span>
+                        <span className="font-bold text-slate-950">Perihal</span>
+                        <span className="font-bold">:</span>
+                        <span className="font-normal text-slate-900">{sph.subject || 'Surat Penawaran Harga Kalibrasi'}</span>
                       </div>
                       <div className="grid grid-cols-[75px_12px_1fr]">
-                        <span className="font-semibold text-slate-900">Lampiran</span>
-                        <span>:</span>
-                        <span className="text-slate-800">{sph.attachmentPages || `${itemChunks.length} Lembar`}</span>
+                        <span className="font-bold text-slate-950">Lampiran</span>
+                        <span className="font-bold">:</span>
+                        <span className="font-normal text-slate-900">{dynamicAttachmentText}</span>
                       </div>
                     </div>
 
                     {/* Sisi Kanan: Tempat & Tanggal */}
-                    <div className="text-right text-xs sm:text-[13px] font-medium text-slate-900">
+                    <div className="text-right text-xs sm:text-[14px] font-normal text-slate-900">
                       {sph.city || 'Surakarta'}, {formattedDate}
                     </div>
                   </div>
 
-                  {/* Tujuan Surat (Kepada Yth) */}
-                  <div className="mb-4 text-xs sm:text-[13px] space-y-0.5">
-                    <p className="text-slate-900 font-medium">Kepada Yth:</p>
-                    <p className="font-bold text-slate-950">{sph.recipientRole || 'Direktur'}</p>
+                  {/* Garis Pembatas Horizontal Dekat dengan Lampiran */}
+                  <div className="border-b border-slate-900 mb-5 pb-0.5" />
+
+                  {/* Tujuan Surat (Kepada Yth) - Jarak 1 baris kosong dari garis */}
+                  <div className="mb-5 text-xs sm:text-[14px] space-y-0.5">
+                    <p className="text-slate-900 font-bold">Kepada Yth:</p>
+                    <p className="font-normal text-slate-900">{sph.recipientRole || 'Direktur'}</p>
                     <p className="font-bold text-slate-950">{sph.hospitalName}</p>
-                    <p className="text-slate-800 max-w-xl leading-relaxed text-xs">
+                    <p className="text-slate-950 max-w-xl leading-relaxed text-xs sm:text-[13px]">
                       {sph.hospitalAddress}
                     </p>
                   </div>
 
                   {/* Isi Surat Pengantar */}
-                  <div className="space-y-2.5 text-xs sm:text-[12.5px] leading-relaxed text-slate-900 text-justify mb-4">
-                    <p className="font-medium">Dengan Hormat,</p>
+                  <div className="space-y-3.5 text-xs sm:text-[13.5px] leading-relaxed text-slate-900 text-justify mb-4">
+                    {/* Jarak 1 baris kosong sebelum Dengan Hormat */}
+                    <p className="font-bold pt-1">Dengan Hormat,</p>
                     <p>
                       Menindaklanjuti mengenai permintaan Kalibrasi alat Kesehatan, <strong>PT. Sarana Multi Kalibrasi</strong> telah memiliki izin dari Kementrian Kesehatan dengan No. 26062301565850001, Sertifikat Akreditasi KAN LK-532-IDN serta menerapkan Standar SNI ISO/ IEC 17025: 2017, melampirkan harga penawaran, adapun ketentuan yang berlaku sebagai berikut:
                     </p>
 
-                    {/* 9 Poin Ketentuan Resmi */}
-                    <ol className="list-decimal list-outside ml-5 space-y-1 text-slate-900 text-xs sm:text-[12px]">
+                    {/* 9 Poin Ketentuan Resmi - Jarak 1 baris kosong dari kalimat di atasnya */}
+                    <ol className="list-decimal list-outside ml-5 space-y-1 text-slate-900 text-xs sm:text-[13.5px] text-justify pt-1">
                       <li>{sph.isPpnIncluded ? 'Harga sudah termasuk PPN 11%.' : 'Harga belum termasuk PPN 11%.'}</li>
                       <li>Harga sudah termasuk biaya transportasi dan akomodasi.</li>
                       <li>Harga tidak termasuk service dan maintenance.</li>
@@ -752,28 +759,33 @@ export const SphPrintModal: React.FC<SphPrintModalProps> = ({
                       <li>Kalibrasi di atas termasuk sertifikat kalibrasi yang dikeluarkan oleh PT. Sarana Multi Kalibrasi.</li>
                       <li>
                         <div>Pembayaran : {sph.bankName || 'Bank Mandiri Cab. Surakarta'}</div>
-                        <div className="pl-0 sm:pl-[78px]">No. Rek : {sph.bankAccountNumber || '138-00-2610846-9'} ({sph.bankAccountName || 'SARANA MULTI KALIBRASI PT'})</div>
+                        {/* Jarak 1 baris kosong */}
+                        <div className="pt-2 pl-0 sm:pl-[85px] font-bold">No. Rek : {sph.bankAccountNumber || '138-00-2610846-9'} ({sph.bankAccountName || 'SARANA MULTI KALIBRASI PT'})</div>
                       </li>
                     </ol>
 
-                    <p className="pt-1">
+                    {/* Jarak 1 baris kosong sebelum dan sesudah paragraf permohonan */}
+                    <p className="pt-2 pb-2 text-justify">
                       Bersama ini kami bermaksud mengajukan permohonan persetujuan Surat Penawaran Harga.
                     </p>
-                    <p>
+                    {/* Jarak 1 baris kosong sebelum dan sesudah paragraf marketing */}
+                    <p className="pb-0 text-justify">
                       Untuk informasi lebih lanjut dapat menghubungi marketing kami di : <strong>{sph.marketingStaffPhone || '0821-3670-7421'} ({sph.marketingStaffName || 'Sulis'})</strong>. Demikian, atas perhatian dan kerjasamanya kami ucapkan terimakasih.
                     </p>
                   </div>
 
-                  {/* Area Tanda Tangan */}
-                  <div className="grid grid-cols-2 gap-8 pt-2 pb-2 text-xs sm:text-sm">
-                    {/* Pihak SMK */}
-                    <div className="text-left">
-                      <p className="font-bold text-slate-950">PT. SARANA MULTI KALIBRASI</p>
+                  {/* Area Tanda Tangan: Spasi lebih rapat dan proporsional di bawah kalimat marketing */}
+                  <div className="grid grid-cols-2 gap-8 pt-3 pb-4 text-xs sm:text-[14px]">
+                    {/* Pihak SMK (Rata Tengah) */}
+                    <div className="text-center flex flex-col justify-between items-center">
+                      <div>
+                        <p className="font-bold text-slate-950 text-center text-xs sm:text-[14px]">PT. SARANA MULTI KALIBRASI</p>
+                      </div>
                       
-                      {/* TTD & Stempel Box */}
-                      <div className="h-24 flex items-center justify-start relative my-1">
+                      {/* TTD & Stempel Box: Ruang tanda tangan proporsional terpusat */}
+                      <div className="h-28 flex items-center justify-center relative my-1 w-full">
                         {/* Authentic SMK Logo Stamp */}
-                        <div className="opacity-80 scale-90 -ml-2">
+                        <div className="opacity-80 scale-90">
                           <CompanyLogo size="lg" variant="light" showSubtitle={false} />
                         </div>
                         {/* Authentic Signature overlay */}
@@ -781,32 +793,35 @@ export const SphPrintModal: React.FC<SphPrintModalProps> = ({
                           <img 
                             src={digitalSignatureUrl} 
                             alt="Tanda Tangan Digital Direktur" 
-                            className="absolute h-20 max-w-[180px] object-contain -left-2 z-10" 
+                            className="absolute h-24 max-w-[170px] object-contain z-10" 
                           />
                         ) : (
-                          <svg className="absolute w-44 h-24 pointer-events-none -left-2" viewBox="0 0 200 100" fill="none">
+                          <svg className="absolute w-44 h-24 pointer-events-none" viewBox="0 0 200 100" fill="none">
                             <path d="M 20 60 Q 40 10, 60 70 T 90 30 Q 110 80, 130 40 L 160 55 M 30 50 L 170 45" stroke="#0f172a" strokeWidth="2.2" strokeLinecap="round" fill="none" />
                           </svg>
                         )}
                       </div>
 
-                      <p className="font-bold text-slate-950 underline underline-offset-2">
-                        {sph.directorName || 'Ahmad Fajar Ariyanto'}
-                      </p>
-                      <p className="text-xs text-slate-800 font-semibold">{sph.directorTitle || 'Direktur'}</p>
+                      <div className="text-center">
+                        <p className="font-bold text-slate-950 text-center text-[11pt] leading-tight">
+                          {sph.directorName || 'Ahmad Fajar Ariyanto'}
+                        </p>
+                        <p className="text-[11pt] text-slate-950 font-normal text-center leading-tight">{sph.directorTitle || 'Direktur'}</p>
+                      </div>
                     </div>
 
-                    {/* Pihak Pelanggan (Rumah Sakit) */}
-                    <div className="text-left flex flex-col justify-between">
+                    {/* Pihak Pelanggan (Rumah Sakit) (Rata Tengah) */}
+                    <div className="text-center flex flex-col justify-between items-center">
                       <div>
-                        <p className="font-bold text-slate-950">Disetujui oleh Pelanggan,</p>
+                        <p className="font-bold text-slate-950 text-center text-xs sm:text-[14px]">Disetujui oleh Pelanggan,</p>
                       </div>
 
-                      <div className="h-24 flex items-center">
+                      {/* Ruang kosong proporsional untuk tanda tangan basah dan cap basah pelanggan */}
+                      <div className="h-28 flex items-center justify-center w-full">
                       </div>
 
-                      <div>
-                        <p className="font-bold text-slate-950">
+                      <div className="text-center">
+                        <p className="font-normal text-slate-900 text-center text-[11pt] leading-tight">
                           ( ………………………………… )
                         </p>
                       </div>
@@ -826,77 +841,82 @@ export const SphPrintModal: React.FC<SphPrintModalProps> = ({
             {(activeViewTab === 'all' || activeViewTab === 'page2') && itemChunks.map((chunk, chunkIndex) => (
               <div 
                 key={`chunk-${chunkIndex}`}
-                className={`bg-white text-slate-900 p-8 sm:p-12 rounded-xl shadow-xl max-w-[210mm] mx-auto min-h-[297mm] relative overflow-hidden flex flex-col justify-between print:shadow-none print:rounded-none print:p-0 print:m-0 print:w-full print:min-h-0 print-page-clean ${chunkIndex > 0 ? 'print-break-after' : ''} ${chunkIndex < itemChunks.length - 1 ? 'print-break-after' : 'print-no-break-after'}`}
+                style={{ fontFamily: 'Calibri, Carlito, "Segoe UI", Arial, sans-serif' }}
+                className={`bg-white text-slate-900 p-6 sm:p-8 rounded-xl shadow-xl max-w-[210mm] mx-auto min-h-[297mm] relative overflow-hidden flex flex-col justify-between print:shadow-none print:rounded-none print:p-0 print:m-0 print:w-full print:min-h-0 print-page-clean ${chunkIndex > 0 ? 'print-break-after' : ''} ${chunkIndex < itemChunks.length - 1 ? 'print-break-after' : 'print-no-break-after'}`}
               >
                 <div>
                   {/* KOP SURAT LAMPIRAN SPH (Menggunakan customLetterheadUrl jika ada) */}
                   <OfficialLetterhead customLetterheadUrl={templatesConfig?.kop_surat?.activeUrl} className="mb-4" />
 
                   {/* Header Meta SPH Lampiran */}
-                  <div className="flex justify-between items-start mb-2 text-xs sm:text-[13px] leading-relaxed">
+                  <div className="flex justify-between items-start mb-2 text-xs sm:text-[13.5px] leading-relaxed">
                     <div className="space-y-0.5">
                       <div className="grid grid-cols-[75px_12px_1fr]">
-                        <span className="font-semibold text-slate-900">Nomor</span>
-                        <span>:</span>
-                        <span className="font-bold text-slate-950">{sph.sphNumber}</span>
+                        <span className="font-bold text-slate-950">Nomor</span>
+                        <span className="font-bold">:</span>
+                        <span className="font-normal text-slate-900">{sph.sphNumber}</span>
                       </div>
                       <div className="grid grid-cols-[75px_12px_1fr]">
-                        <span className="font-semibold text-slate-900">Perihal</span>
-                        <span>:</span>
-                        <span className="font-semibold text-slate-900">{sph.subject || 'Surat Penawaran Harga Kalibrasi'}</span>
+                        <span className="font-bold text-slate-950">Perihal</span>
+                        <span className="font-bold">:</span>
+                        <span className="font-normal text-slate-900">{sph.subject || 'Surat Penawaran Harga Kalibrasi'}</span>
                       </div>
                       <div className="grid grid-cols-[75px_12px_1fr]">
-                        <span className="font-semibold text-slate-900">Lampiran</span>
-                        <span>:</span>
-                        <span className="text-slate-800">{sph.attachmentPages || `${itemChunks.length} Lembar`}</span>
+                        <span className="font-bold text-slate-950">Lampiran</span>
+                        <span className="font-bold">:</span>
+                        <span className="font-normal text-slate-900">{dynamicAttachmentText}</span>
                       </div>
                     </div>
-                    <div className="text-right text-xs sm:text-[13px] font-medium text-slate-900">
+                    <div className="text-right text-xs sm:text-[13.5px] font-normal text-slate-900">
                       {sph.city || 'Surakarta'}, {formattedDate}
                     </div>
                   </div>
 
-                  {/* Judul Dokumen Lampiran */}
-                  <div className="text-center my-2 pb-1">
-                    <span className="text-sm sm:text-base font-bold text-slate-950 underline underline-offset-4 tracking-wide">
-                      Surat Penawaran Harga
-                    </span>
-                  </div>
+                  {/* Judul Dokumen Lampiran - Hanya di Halaman 1 Tabel (Polos tanpa bingkai) */}
+                  {chunkIndex === 0 && (
+                    <div className="text-center my-3 pb-1">
+                      <span className="text-sm sm:text-base font-bold text-slate-950 tracking-wide">
+                        Surat Penawaran Harga
+                      </span>
+                    </div>
+                  )}
 
                   {/* Tabel Rincian Alat Medis */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse border border-black text-xs">
-                      <thead>
-                        <tr className="bg-[#0099e6] text-white font-bold border-b border-black text-center">
-                          <th className="border border-black px-2 py-1.5 w-10 text-center text-white">No.</th>
-                          <th className="border border-black px-3 py-1.5 text-center text-white">Diskripsi</th>
-                          <th className="border border-black px-2 py-1.5 w-12 text-center text-white">Qty</th>
-                          <th className="border border-black px-2 py-1.5 w-14 text-center text-white">Satuan</th>
-                          <th className="border border-black px-3 py-1.5 w-28 text-center text-white">Harga Satuan</th>
-                          <th className="border border-black px-3 py-1.5 w-32 text-center text-white">Total Harga</th>
-                        </tr>
-                      </thead>
+                  <div className={`overflow-x-auto ${chunkIndex > 0 ? 'mt-4' : ''}`}>
+                    <table className="w-full text-left border-collapse border border-black text-xs sm:text-[13.5px]">
+                      {chunkIndex === 0 && (
+                        <thead>
+                          <tr className="bg-[#00A2E8] text-slate-950 font-bold border-b border-black text-center">
+                            <th className="border border-black px-2 py-2 w-10 text-center text-slate-950">No.</th>
+                            <th className="border border-black px-3 py-2 text-center text-slate-950">Diskripsi</th>
+                            <th className="border border-black px-2 py-2 w-12 text-center text-slate-950">Qty</th>
+                            <th className="border border-black px-2 py-2 w-14 text-center text-slate-950">Satuan</th>
+                            <th className="border border-black px-3 py-2 w-28 text-center text-slate-950">Harga Satuan</th>
+                            <th className="border border-black px-3 py-2 w-32 text-center text-slate-950">Total Harga</th>
+                          </tr>
+                        </thead>
+                      )}
                       <tbody>
-                        {chunk.map((item, index) => {
-                          const globalIndex = (chunkIndex * itemsPerPage) + index + 1;
+                        {chunk.items.map((item, index) => {
+                          const globalIndex = item.no || (chunk.startIndex + index + 1);
                           return (
-                            <tr key={item.id || index} className="border-b border-black/40 hover:bg-slate-50/50">
-                              <td className="border border-black px-2 py-1 text-center font-medium">{globalIndex}</td>
-                              <td className="border border-black px-3 py-1">
-                                <div className="font-semibold text-slate-950">{item.description}</div>
+                            <tr key={item.id || index} className="border-b border-black/40 hover:bg-slate-50/50 bg-white">
+                              <td className="border border-black px-2 py-1.5 text-center font-medium">{globalIndex}</td>
+                              <td className="border border-black px-3 py-1.5 text-left">
+                                <div className="font-semibold text-slate-950 text-left">{item.description}</div>
                                 {item.notes && (
-                                  <div className="text-[10px] text-slate-700 italic">{item.notes}</div>
+                                   <div className="text-[11px] text-slate-700 italic text-left">{item.notes}</div>
                                 )}
                               </td>
-                              <td className="border border-black px-2 py-1 text-center font-medium">{item.quantity}</td>
-                              <td className="border border-black px-2 py-1 text-center text-slate-800">{item.unit || 'Unit'}</td>
-                              <td className="border border-black px-3 py-1 font-mono text-slate-900">
+                              <td className="border border-black px-2 py-1.5 text-center font-medium">{item.quantity}</td>
+                              <td className="border border-black px-2 py-1.5 text-center text-slate-800">{item.unit || 'Unit'}</td>
+                              <td className="border border-black px-3 py-1.5 font-mono text-slate-900">
                                 <div className="flex justify-between items-center">
                                   <span>Rp</span>
                                   <span>{formatNumber(item.unitPrice)}</span>
                                 </div>
                               </td>
-                              <td className="border border-black px-3 py-1 font-mono font-semibold text-slate-950">
+                              <td className="border border-black px-3 py-1.5 font-mono font-semibold text-slate-950">
                                 <div className="flex justify-between items-center">
                                   <span>Rp</span>
                                   <span>{formatNumber(item.totalPrice)}</span>
@@ -907,15 +927,24 @@ export const SphPrintModal: React.FC<SphPrintModalProps> = ({
                         })}
                       </tbody>
 
-                      {/* Baris Total Biaya (Hanya tampil di halaman terakhir) */}
-                      {chunkIndex === itemChunks.length - 1 && (
-                        <tfoot className="font-bold border-t-2 border-black">
-                          {/* Total 1 */}
+                      {/* Baris Total Biaya & Terbilang (Hanya tampil di halaman penutup summary) */}
+                      {chunk.hasSummary && (
+                        <tfoot className="font-bold border-t-2 border-black text-xs sm:text-[13.5px]">
+                          {/* Row 1: Jumlah (Biru Muda) & Total 1 (Putih Polos) */}
                           <tr className="border-b border-black">
-                            <td colSpan={5} className="border border-black px-3 py-1 text-right font-bold text-slate-900">
+                            <td colSpan={2} className="border border-black px-3 py-2 text-center font-bold text-slate-950 bg-[#00A2E8]">
+                              Jumlah
+                            </td>
+                            <td className="border border-black px-2 py-2 text-center font-bold text-slate-950 bg-[#00A2E8]">
+                              {totalUnits}
+                            </td>
+                            <td className="border border-black px-2 py-2 text-center text-slate-950 font-bold bg-[#00A2E8]">
+                              Unit
+                            </td>
+                            <td className="border border-black px-3 py-2 text-right font-bold text-slate-950 bg-white pr-3">
                               Total 1
                             </td>
-                            <td className="border border-black px-3 py-1 font-mono">
+                            <td className="border border-black px-3 py-2 font-mono font-bold bg-white">
                               <div className="flex justify-between items-center">
                                 <span>Rp</span>
                                 <span>{formatNumber(sph.subtotal1)}</span>
@@ -923,38 +952,20 @@ export const SphPrintModal: React.FC<SphPrintModalProps> = ({
                             </td>
                           </tr>
 
-                          {/* PPN 11% */}
+                          {/* Row 2+: Terbilang Box on Left (colspan 4) & Summary Breakdown on Right (colspan 2) */}
                           <tr className="border-b border-black">
-                            <td colSpan={5} className="border border-black px-3 py-1 text-right font-bold text-slate-900">
-                              PPN 11%
-                            </td>
-                            <td className="border border-black px-3 py-1 font-mono">
-                              <div className="flex justify-between items-center">
-                                <span>Rp</span>
-                                <span>{formatNumber(sph.ppnAmount)}</span>
+                            {/* Terbilang Box: Label Rata Kiri & Italic, Angka Center di baris bawah & Italic */}
+                            <td colSpan={4} rowSpan={4} className="border border-black p-3 align-top bg-white">
+                              <div className="text-xs sm:text-[13.5px] font-bold italic text-slate-950 mb-1 text-left">Terbilang:</div>
+                              <div className="text-xs sm:text-[13.5px] font-bold italic text-slate-900 leading-relaxed max-w-sm mx-auto text-center pt-1">
+                                "{sph.terbilang || '-'}"
                               </div>
                             </td>
-                          </tr>
-
-                          {/* Total 2 */}
-                          <tr className="border-b border-black">
-                            <td colSpan={5} className="border border-black px-3 py-1 text-right font-bold text-slate-900">
-                              Total 2
-                            </td>
-                            <td className="border border-black px-3 py-1 font-mono">
-                              <div className="flex justify-between items-center">
-                                <span>Rp</span>
-                                <span>{formatNumber(sph.subtotal2 || (sph.subtotal1 + sph.ppnAmount))}</span>
-                              </div>
-                            </td>
-                          </tr>
-
-                          {/* Akomodasi */}
-                          <tr className="border-b border-black">
-                            <td colSpan={5} className="border border-black px-3 py-1 text-right font-bold text-slate-900">
+                            {/* Akomodasi */}
+                            <td className="border border-black px-3 py-2 text-right font-bold text-slate-950 bg-white pr-3">
                               Akomodasi
                             </td>
-                            <td className="border border-black px-3 py-1 font-mono">
+                            <td className="border border-black px-3 py-2 font-mono bg-white">
                               <div className="flex justify-between items-center">
                                 <span>Rp</span>
                                 <span>{sph.accommodationFee > 0 ? formatNumber(sph.accommodationFee) : '-'}</span>
@@ -962,12 +973,38 @@ export const SphPrintModal: React.FC<SphPrintModalProps> = ({
                             </td>
                           </tr>
 
-                          {/* Grand Total */}
-                          <tr className="bg-[#0099e6] text-white border-b border-black font-extrabold text-sm">
-                            <td colSpan={5} className="border border-black px-3 py-1.5 text-right tracking-wide text-white">
+                          {/* Total 2 */}
+                          <tr className="border-b border-black">
+                            <td className="border border-black px-3 py-2 text-right font-bold text-slate-950 bg-white pr-3">
+                              Total 2
+                            </td>
+                            <td className="border border-black px-3 py-2 font-mono bg-white">
+                              <div className="flex justify-between items-center">
+                                <span>Rp</span>
+                                <span>{formatNumber(sph.subtotal2 || (sph.subtotal1 + (sph.accommodationFee || 0)))}</span>
+                              </div>
+                            </td>
+                          </tr>
+
+                          {/* PPN 11% */}
+                          <tr className="border-b border-black">
+                            <td className="border border-black px-3 py-2 text-right font-bold text-slate-950 bg-white pr-3">
+                              {sph.isPpnIncluded ? 'PPN 11%' : 'PPN 11% (Non)'}
+                            </td>
+                            <td className="border border-black px-3 py-2 font-mono bg-white">
+                              <div className="flex justify-between items-center">
+                                <span>Rp</span>
+                                <span>{formatNumber(sph.ppnAmount)}</span>
+                              </div>
+                            </td>
+                          </tr>
+
+                          {/* GRAND TOTAL */}
+                          <tr className="bg-[#00A2E8] text-slate-950 border-b border-black font-extrabold text-sm sm:text-base">
+                            <td className="border border-black px-3 py-2.5 text-right tracking-wide font-bold text-slate-950 pr-3">
                               GRAND TOTAL
                             </td>
-                            <td className="border border-black px-3 py-1.5 font-mono text-white">
+                            <td className="border border-black px-3 py-2.5 font-mono font-bold text-slate-950">
                               <div className="flex justify-between items-center">
                                 <span>Rp</span>
                                 <span>{formatNumber(sph.grandTotal)}</span>
@@ -979,9 +1016,9 @@ export const SphPrintModal: React.FC<SphPrintModalProps> = ({
                     </table>
                   </div>
 
-                  {/* Terbilang & Catatan Kaki (Hanya di chunk terakhir) */}
+                  {/* Catatan Kaki (Hanya di chunk terakhir) */}
                   {chunkIndex === itemChunks.length - 1 && (
-                    <div className="mt-3 text-[10px] sm:text-[10.5px] text-slate-700 italic space-y-0.5 pt-1">
+                    <div className="mt-4 text-[10.5px] sm:text-[11px] text-slate-950 italic space-y-0.5 pt-1">
                       <p>*Hanya dilakukan Uji Keselamatan Listrik dan/atau Uji Fungsi dan Kondisi Alat</p>
                       <p>**Alat dilakukan penarikan ke PT Sarana Multi Kalibrasi</p>
                       <p>***Alat dilakukan penarikan untuk subkontraktor pekerjaan</p>

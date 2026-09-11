@@ -317,6 +317,16 @@ export interface SphQuotation {
   validUntilDate: string;
 }
 
+export interface BapHeaderInfo {
+  customerName: string;
+  sphNumber: string;
+  poDate: string;
+  address: string;
+  cityDistrict: string;
+  labelNumber: string;
+  bastpNumber: string;
+}
+
 export interface BapItem {
   id: string;
   no: number;
@@ -338,9 +348,11 @@ export interface BapDocument {
   cityDistrict: string;              // Kota/Kab.
   labelNumber: string;               // No. Label (e.g. "066")
   bastpNumber: string;               // No. BASTP (e.g. "066/SMK/BASTP/IX/2026")
-  dateColumns: string[];             // Dynamic realization dates e.g. ["Tgl 03", "Tgl 04"]
+  dateColumns: string[];             // Dynamic realization dates e.g. ["Tgl 03", "Tgl 04", "Tgl 05", "Tgl 06", "Tgl 07", "Tgl 08", "Tgl 09"]
   items: BapItem[];                  // Sheet Rekap & BAP
-  nonPoItems: BapItem[];             // Sheet Rekap Non PO & BAP Non PO
+  nonPoHeader?: Partial<BapHeaderInfo>; // Sheet Rekap Non PO & BAP Non PO (blank by default until filled)
+  nonPoDateColumns?: string[];       // Dynamic realization dates for Non PO
+  nonPoItems: BapItem[];             // Sheet Rekap Non PO & BAP Non PO (blank by default)
   technicianName?: string;
   adminName?: string;
   status?: 'Draft' | 'Dalam Pekerjaan' | 'Selesai';

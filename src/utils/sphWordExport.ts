@@ -73,30 +73,30 @@ export function exportSphToWord(
         <li style="margin-bottom: 3px;">Pekerjaan dianggap selesai setelah berita acara/BO (Bukti Order) di tanda tangani oleh pihak yang berwenang.</li>
         <li style="margin-bottom: 3px;">Kalibrasi di atas termasuk sertifikat kalibrasi yang dikeluarkan oleh PT. Sarana Multi Kalibrasi.</li>
         <li style="margin-bottom: 3px;">
-          Pembayaran : ${sph.bankName || 'Bank Mandiri Cab. Surakarta'}<br/>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;No. Rek : ${sph.bankAccountNumber || '138-00-2610846-9'} (${sph.bankAccountName || 'SARANA MULTI KALIBRASI PT'})
+          Pembayaran : ${sph.bankName || 'Bank Mandiri Cab. Surakarta'}<br/><br/>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b>No. Rek : ${sph.bankAccountNumber || '138-00-2610846-9'} (${sph.bankAccountName || 'SARANA MULTI KALIBRASI PT'})</b>
         </li>
       </ol>
 
-      <p style="margin: 8px 0 4px 0;">
+      <p style="margin: 14px 0 14px 0;">
         Bersama ini kami bermaksud mengajukan permohonan persetujuan Surat Penawaran Harga.
       </p>
-      <p style="margin: 0;">
+      <p style="margin: 0 0 14px 0;">
         Untuk informasi lebih lanjut dapat menghubungi marketing kami di : <b>${sph.marketingStaffPhone || '0821-3670-7421'} (${sph.marketingStaffName || 'Sulis'})</b>. Demikian, atas perhatian dan kerjasamanya kami ucapkan terimakasih.
       </p>
     </div>
 
-    <table class="no-border" style="width: 100%; margin-top: 18px; font-size: 9.5pt;">
+    <table class="no-border" style="width: 100%; margin-top: 24px; font-size: 10pt;">
       <tr>
         <td style="width: 50%; vertical-align: top;">
           <div style="font-weight: bold;">PT. SARANA MULTI KALIBRASI</div>
-          <div style="height: 60px;"></div>
+          <div style="height: 110px;"></div>
           <div style="font-weight: bold; text-decoration: underline;">${signatoryName}</div>
-          <div style="font-size: 8.5pt; color: #334155;">${signatoryTitle}</div>
+          <div style="font-size: 9pt; color: #334155;">${signatoryTitle}</div>
         </td>
         <td style="width: 50%; vertical-align: top;">
           <div style="font-weight: bold;">Disetujui oleh Pelanggan,</div>
-          <div style="height: 60px;"></div>
+          <div style="height: 110px;"></div>
           <div style="font-weight: bold;">( ………………………………… )</div>
         </td>
       </tr>

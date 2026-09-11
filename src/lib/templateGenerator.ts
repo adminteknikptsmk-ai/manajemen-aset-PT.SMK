@@ -2,8 +2,32 @@ import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { saveAs } from 'file-saver';
 import { PDFDocument, PDFRawStream, StandardFonts, rgb } from 'pdf-lib';
+import * as fontkit from '@pdf-lib/fontkit';
 import * as pako from 'pako';
 import { fillExcelTemplate, convertExcelToPdfBytes, extractPlaceholdersFromExcel } from './excelTemplateService';
+
+// Cached font buffers for consistent Calibri / Carlito rendering across all PDF generations
+let cachedCarlitoRegular: Uint8Array | null = null;
+let cachedCarlitoBold: Uint8Array | null = null;
+let cachedCarlitoItalic: Uint8Array | null = null;
+let cachedCarlitoBoldItalic: Uint8Array | null = null;
+
+async function fetchFontBytes(urls: string[]): Promise<Uint8Array | null> {
+  for (const url of urls) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        const buf = await res.arrayBuffer();
+        if (buf && buf.byteLength > 1000) {
+          return new Uint8Array(buf);
+        }
+      }
+    } catch {
+      // Continue to next candidate
+    }
+  }
+  return null;
+}
 
 /**
  * Extracts Google Drive File ID from various Google Drive / Docs / Sheets / Slides link formats.
@@ -310,6 +334,83 @@ function wrapPdfText(text: string, maxChars: number): string[] {
   return lines;
 }
 
+export interface SphTablePageChunk {
+  pageIndex: number;
+  items: any[];
+  startIndex: number;
+  hasSummary: boolean;
+}
+
+/**
+ * Calculates optimal table item distribution across pages for SPH:
+ * - Intermediate page (no summary): fits up to 25 rows down to ~3cm bottom margin
+ * - Page with summary + terbilang + footnotes: fits up to 19 rows
+ * - Maximizes the current page space before breaking to the next page
+ */
+export function paginateSphTableItems(items: any[]): SphTablePageChunk[] {
+  const PAGE1_MAX_SUMMARY_ROWS = 19;
+  const PAGE1_MAX_INTERMEDIATE_ROWS = 24;
+  const CONT_MAX_SUMMARY_ROWS = 21;
+  const CONT_MAX_INTERMEDIATE_ROWS = 27;
+
+  if (!items || items.length === 0) {
+    return [{ pageIndex: 0, items: [], startIndex: 0, hasSummary: true }];
+  }
+
+  // Jika seluruh item muat di 1 halaman bersama summary
+  if (items.length <= PAGE1_MAX_SUMMARY_ROWS) {
+    return [{ pageIndex: 0, items, startIndex: 0, hasSummary: true }];
+  }
+
+  const chunks: SphTablePageChunk[] = [];
+  let currentIndex = 0;
+
+  while (currentIndex < items.length) {
+    const isFirstTablePage = chunks.length === 0;
+    const maxSummaryRows = isFirstTablePage ? PAGE1_MAX_SUMMARY_ROWS : CONT_MAX_SUMMARY_ROWS;
+    const maxIntermediateRows = isFirstTablePage ? PAGE1_MAX_INTERMEDIATE_ROWS : CONT_MAX_INTERMEDIATE_ROWS;
+
+    const remainingCount = items.length - currentIndex;
+
+    // Jika sisa item muat bersama kotak summary pada halaman ini
+    if (remainingCount <= maxSummaryRows) {
+      chunks.push({
+        pageIndex: chunks.length,
+        items: items.slice(currentIndex),
+        startIndex: currentIndex,
+        hasSummary: true
+      });
+      currentIndex = items.length;
+      break;
+    }
+
+    // Jika tidak muat bersama summary, maksimalkan baris di halaman ini
+    const takeCount = Math.min(maxIntermediateRows, remainingCount);
+    const chunkItems = items.slice(currentIndex, currentIndex + takeCount);
+    currentIndex += takeCount;
+
+    chunks.push({
+      pageIndex: chunks.length,
+      items: chunkItems,
+      startIndex: currentIndex - takeCount,
+      hasSummary: false
+    });
+
+    // Jika seluruh item sudah diambil namun summary belum digambar, buat halaman penutup untuk summary
+    if (currentIndex >= items.length) {
+      chunks.push({
+        pageIndex: chunks.length,
+        items: [],
+        startIndex: items.length,
+        hasSummary: true
+      });
+      break;
+    }
+  }
+
+  return chunks;
+}
+
 /**
  * Creates the authentic official PT. SMK Surat Penawaran Harga (SPH) PDF
  * Clean layout specifically designed for pre-printed letterhead paper (kertas berkop fisik):
@@ -343,9 +444,59 @@ export async function createAuthenticSphPdf(
     }
   }
 
-  const fontBold = await pdfDoc.embedStandardFont(StandardFonts.HelveticaBold);
-  const fontRegular = await pdfDoc.embedStandardFont(StandardFonts.Helvetica);
-  const fontOblique = await pdfDoc.embedStandardFont(StandardFonts.HelveticaOblique);
+  try {
+    pdfDoc.registerFontkit(fontkit);
+    
+    if (!cachedCarlitoRegular) {
+      cachedCarlitoRegular = await fetchFontBytes([
+        'https://raw.githubusercontent.com/google/fonts/main/ofl/carlito/Carlito-Regular.ttf',
+        'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/carlito/Carlito-Regular.ttf'
+      ]);
+    }
+    if (!cachedCarlitoBold) {
+      cachedCarlitoBold = await fetchFontBytes([
+        'https://raw.githubusercontent.com/google/fonts/main/ofl/carlito/Carlito-Bold.ttf',
+        'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/carlito/Carlito-Bold.ttf'
+      ]);
+    }
+    if (!cachedCarlitoItalic) {
+      cachedCarlitoItalic = await fetchFontBytes([
+        'https://raw.githubusercontent.com/google/fonts/main/ofl/carlito/Carlito-Italic.ttf',
+        'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/carlito/Carlito-Italic.ttf'
+      ]);
+    }
+    if (!cachedCarlitoBoldItalic) {
+      cachedCarlitoBoldItalic = await fetchFontBytes([
+        'https://raw.githubusercontent.com/google/fonts/main/ofl/carlito/Carlito-BoldItalic.ttf',
+        'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/carlito/Carlito-BoldItalic.ttf'
+      ]);
+    }
+  } catch (err) {
+    console.warn('Fontkit registration or font fetch notice:', err);
+  }
+
+  let fontBold: any = null;
+  let fontRegular: any = null;
+  let fontOblique: any = null;
+  let fontBoldOblique: any = null;
+
+  try {
+    if (cachedCarlitoRegular && cachedCarlitoBold) {
+      fontRegular = await pdfDoc.embedFont(cachedCarlitoRegular);
+      fontBold = await pdfDoc.embedFont(cachedCarlitoBold);
+      fontOblique = cachedCarlitoItalic ? await pdfDoc.embedFont(cachedCarlitoItalic) : fontRegular;
+      fontBoldOblique = cachedCarlitoBoldItalic ? await pdfDoc.embedFont(cachedCarlitoBoldItalic) : (cachedCarlitoItalic ? await pdfDoc.embedFont(cachedCarlitoItalic) : fontBold);
+    }
+  } catch (e) {
+    console.warn('Could not embed custom Carlito font, fallback to standard fonts:', e);
+  }
+
+  if (!fontBold || !fontRegular) {
+    fontBold = await pdfDoc.embedStandardFont(StandardFonts.HelveticaBold);
+    fontRegular = await pdfDoc.embedStandardFont(StandardFonts.Helvetica);
+    fontOblique = await pdfDoc.embedStandardFont(StandardFonts.HelveticaOblique);
+    fontBoldOblique = await pdfDoc.embedStandardFont(StandardFonts.HelveticaBoldOblique);
+  }
 
   // Measurements & Constants (A4 Paper: 21.0 cm x 29.7 cm)
   const PAGE_WIDTH = 595.28;  // 21.0 cm in points
@@ -355,9 +506,22 @@ export async function createAuthenticSphPdf(
   // Helper to convert cm from top edge to PDF Y-coordinate (origin at bottom-left)
   const yFromTop = (cm: number): number => PAGE_HEIGHT - (cm * CM_TO_PT);
 
-  // Margins
-  const marginX = 54; // ~1.9 cm left/right margin
-  const rightX = PAGE_WIDTH - marginX; // 541.28 pt
+  // Exact 1.0 cm margin on both Left and Right (Identical on Page 1 & Page 2)
+  const MARGIN_CM = 1.0;
+  const marginX = MARGIN_CM * CM_TO_PT; // 28.35 pt (~1.0 cm)
+  const rightX = PAGE_WIDTH - marginX;  // 566.93 pt
+  const printableWidth = rightX - marginX; // 538.59 pt
+
+  // Colors as specified in reference:
+  // Header tabel: Biru Navy, teks putih bold
+  const COLOR_NAVY = rgb(11 / 255, 47 / 255, 100 / 255); // #0B2F64 (Navy Blue)
+  // Baris Jumlah & GRAND TOTAL: Biru Muda, teks bold
+  const COLOR_LIGHT_BLUE = rgb(0 / 255, 162 / 255, 232 / 255); // #00A2E8 (Biru Muda / Cyan)
+  const COLOR_BLACK = rgb(0, 0, 0);
+  const COLOR_DARK = rgb(0.1, 0.1, 0.1);
+  const COLOR_MUTED = rgb(0.3, 0.35, 0.4);
+  const COLOR_WHITE = rgb(1, 1, 1);
+  const COLOR_BORDER = rgb(0, 0, 0);
 
   // Digital Signature (if provided by user in signature pad)
   let embeddedSigImg: any = null;
@@ -373,12 +537,129 @@ export async function createAuthenticSphPdf(
     }
   }
 
-  const formatCurrencyPdf = (val: any): string => {
-    if (val === undefined || val === null || val === '' || val === '-') return 'Rp -';
-    if (typeof val === 'string' && val.startsWith('Rp')) return val;
+  const formatNumberOnly = (val: any): string => {
+    if (val === undefined || val === null || val === '' || val === '-') return '-';
+    if (typeof val === 'string' && val.startsWith('Rp')) {
+      return val.replace('Rp', '').trim();
+    }
     const num = typeof val === 'number' ? val : Number(String(val).replace(/[^0-9.-]+/g, '')) || 0;
-    if (num === 0) return 'Rp -';
-    return 'Rp ' + num.toLocaleString('id-ID');
+    if (num === 0) return '-';
+    return num.toLocaleString('id-ID');
+  };
+
+  /**
+   * Helper function for drawing true justified text in PDF.
+   * Stretches every line except the last line of a paragraph to touch rightX perfectly.
+   */
+  const drawJustifiedPdfParagraph = (
+    page: any,
+    text: string,
+    startX: number,
+    startY: number,
+    targetWidth: number,
+    fontSize: number,
+    font: any,
+    color: any,
+    lineHeight: number = 11.5
+  ): number => {
+    if (!text) return startY;
+    const clean = safePdfText(text);
+    const words = clean.split(/\s+/).filter(Boolean);
+    if (words.length === 0) return startY;
+
+    const lines: string[][] = [];
+    let currentLine: string[] = [];
+    let currentWidth = 0;
+    const spaceWidth = font.widthOfTextAtSize(' ', fontSize);
+
+    for (const word of words) {
+      const wordW = font.widthOfTextAtSize(word, fontSize);
+      const addedW = currentLine.length > 0 ? spaceWidth + wordW : wordW;
+
+      if (currentWidth + addedW > targetWidth && currentLine.length > 0) {
+        lines.push(currentLine);
+        currentLine = [word];
+        currentWidth = wordW;
+      } else {
+        currentLine.push(word);
+        currentWidth += addedW;
+      }
+    }
+    if (currentLine.length > 0) {
+      lines.push(currentLine);
+    }
+
+    let curY = startY;
+    for (let i = 0; i < lines.length; i++) {
+      const lineWords = lines[i];
+      const isLastLine = i === lines.length - 1;
+
+      if (isLastLine || lineWords.length === 1) {
+        let x = startX;
+        for (let w = 0; w < lineWords.length; w++) {
+          page.drawText(lineWords[w], { x, y: curY, size: fontSize, font, color });
+          x += font.widthOfTextAtSize(lineWords[w], fontSize) + spaceWidth;
+        }
+      } else {
+        const totalWordsW = lineWords.reduce((sum, w) => sum + font.widthOfTextAtSize(w, fontSize), 0);
+        const extraSpace = targetWidth - totalWordsW;
+        const wordGap = extraSpace / (lineWords.length - 1);
+
+        let x = startX;
+        for (let w = 0; w < lineWords.length; w++) {
+          page.drawText(lineWords[w], { x, y: curY, size: fontSize, font, color });
+          x += font.widthOfTextAtSize(lineWords[w], fontSize) + wordGap;
+        }
+      }
+      curY -= lineHeight;
+    }
+
+    return curY;
+  };
+
+  // Prepare items & calculate dynamic pagination chunks FIRST before drawing Page 1 and Page 2+
+  const rawItems = Array.isArray(data.items) ? data.items : [];
+  const items = rawItems.length > 0 ? rawItems : [
+    { no: 1, description: 'Jasa Kalibrasi Alat Kesehatan', quantity: 1, unit: 'Unit', unitPrice: data.grandTotal || '0', totalPrice: data.grandTotal || '0' }
+  ];
+
+  const totalQty = items.reduce((acc, it) => acc + (Number(it.quantity) || 1), 0);
+
+  // Dynamic pagination: maximizes table rows per page down to ~3cm bottom margin
+  const tableChunks = paginateSphTableItems(items);
+  const totalTablePages = tableChunks.length;
+  // Field Lampiran dinamis mengikuti jumlah halaman aktual yang dihasilkan tabel item
+  const dynamicAttachmentText = `${totalTablePages} Lembar`;
+
+  // Helper for drawing aligned header info (Nomor, Perihal, Lampiran) on any page (12pt font size)
+  const drawHeaderInfo = (page: any) => {
+    const colonX = marginX + 64;
+    const valueX = marginX + 74;
+
+    // 1. Label "Nomor :", "Perihal :", "Lampiran :" dibuat bold, isian di sebelahnya normal (tidak bold)
+    const nomorY = yFromTop(4.25);
+    page.drawText('Nomor', { x: marginX, y: nomorY, size: 12, font: fontBold, color: COLOR_BLACK });
+    page.drawText(':', { x: colonX, y: nomorY, size: 12, font: fontBold, color: COLOR_BLACK });
+    page.drawText(safePdfText(data.sphNumber || '-'), { x: valueX, y: nomorY, size: 12, font: fontRegular, color: COLOR_BLACK });
+
+    const perihalY = yFromTop(4.7);
+    page.drawText('Perihal', { x: marginX, y: perihalY, size: 12, font: fontBold, color: COLOR_BLACK });
+    page.drawText(':', { x: colonX, y: perihalY, size: 12, font: fontBold, color: COLOR_BLACK });
+    page.drawText(safePdfText(data.subject || 'Surat Penawaran Harga Kalibrasi'), { x: valueX, y: perihalY, size: 12, font: fontRegular, color: COLOR_BLACK });
+
+    const lampiranY = yFromTop(5.15);
+    page.drawText('Lampiran', { x: marginX, y: lampiranY, size: 12, font: fontBold, color: COLOR_BLACK });
+    page.drawText(':', { x: colonX, y: lampiranY, size: 12, font: fontBold, color: COLOR_BLACK });
+    page.drawText(safePdfText(dynamicAttachmentText), { x: valueX, y: lampiranY, size: 12, font: fontRegular, color: COLOR_BLACK });
+
+    // Garis horizontal pembatas didekatkan ke teks "Lampiran :" (jarak ~7 pt)
+    const lineY = yFromTop(5.4);
+    page.drawLine({
+      start: { x: marginX, y: lineY },
+      end: { x: rightX, y: lineY },
+      thickness: 0.8,
+      color: COLOR_BLACK
+    });
   };
 
   // =========================================================================
@@ -386,70 +667,44 @@ export async function createAuthenticSphPdf(
   // Clean canvas for pre-printed letterhead paper (tanpa kop surat & logo)
   // =========================================================================
   const page1 = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  drawHeaderInfo(page1);
 
-  // Precise Top Positions:
-  // 1. "Nomor :" at 4.0 cm from top
-  const nomorY = yFromTop(4.0);
-  page1.drawText('Nomor', { x: marginX, y: nomorY, size: 8.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-  page1.drawText(':', { x: marginX + 48, y: nomorY, size: 8.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-  page1.drawText(safePdfText(data.sphNumber || '-'), { x: marginX + 58, y: nomorY, size: 8.5, font: fontBold, color: rgb(0, 0, 0) });
-
-  // 2. "Perihal :" at 4.5 cm from top
-  const perihalY = yFromTop(4.5);
-  page1.drawText('Perihal', { x: marginX, y: perihalY, size: 8.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-  page1.drawText(':', { x: marginX + 48, y: perihalY, size: 8.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-  page1.drawText(safePdfText(data.subject || 'Surat Penawaran Harga Kalibrasi'), { x: marginX + 58, y: perihalY, size: 8.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-
-  // 3. "Lampiran :" at 5.0 cm from top
-  const lampiranY = yFromTop(5.0);
-  page1.drawText('Lampiran', { x: marginX, y: lampiranY, size: 8.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-  page1.drawText(':', { x: marginX + 48, y: lampiranY, size: 8.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-  page1.drawText(safePdfText(data.attachmentPages || '1 Lembar'), { x: marginX + 58, y: lampiranY, size: 8.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-
-  // 4. Dividing horizontal line at 5.5 cm from top
-  const lineY = yFromTop(5.5);
-  page1.drawLine({
-    start: { x: marginX, y: lineY },
-    end: { x: rightX, y: lineY },
-    thickness: 0.8,
-    color: rgb(0.15, 0.15, 0.15)
-  });
-
-  // 5. Letter Content below line (starting around 6.0 cm from top)
-  // Date on right (e.g. "Surakarta, 09 September 2026")
-  let contentY = yFromTop(6.0);
+  // 2. Jarak 1 baris kosong antara garis horizontal pembatas dengan baris "Kepada Yth:"
+  const headerLineY = yFromTop(5.4);
+  let contentY = headerLineY - 24; // 1 baris kosong di bawah garis
+  
+  // Date on right (e.g. "Surakarta, 01 September 2026")
   const rightDateStr = safePdfText(data.formattedDate || `${data.city || 'Surakarta'}, ${data.date || new Date().toLocaleDateString('id-ID')}`);
-  const dateWidth = fontRegular.widthOfTextAtSize(rightDateStr, 8.5);
-  page1.drawText(rightDateStr, { x: rightX - dateWidth, y: contentY, size: 8.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
+  const dateWidth = fontRegular.widthOfTextAtSize(rightDateStr, 12);
+  page1.drawText(rightDateStr, { x: rightX - dateWidth, y: contentY, size: 12, font: fontRegular, color: COLOR_BLACK });
 
-  // Recipient info on left (Kepada Yth)
-  page1.drawText('Kepada Yth:', { x: marginX, y: contentY, size: 8.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-  contentY -= 12;
-  page1.drawText(safePdfText(data.recipientRole || 'Direktur'), { x: marginX, y: contentY, size: 8.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-  contentY -= 12;
-  page1.drawText(safePdfText(data.hospitalName || '-'), { x: marginX, y: contentY, size: 8.5, font: fontBold, color: rgb(0, 0, 0) });
+  // Recipient info on left (Kepada Yth:)
+  page1.drawText('Kepada Yth:', { x: marginX, y: contentY, size: 12, font: fontBold, color: COLOR_BLACK });
+  contentY -= 15;
+  page1.drawText(safePdfText(data.recipientRole || 'Direktur'), { x: marginX, y: contentY, size: 12, font: fontRegular, color: COLOR_BLACK });
+  contentY -= 15;
+  page1.drawText(safePdfText(data.hospitalName || '-'), { x: marginX, y: contentY, size: 12, font: fontBold, color: COLOR_BLACK });
   if (data.hospitalAddress) {
-    const addrLines = wrapPdfText(String(data.hospitalAddress), 80);
+    const addrLines = wrapPdfText(String(data.hospitalAddress), 65);
     for (const al of addrLines.slice(0, 2)) {
-      contentY -= 11;
-      page1.drawText(safePdfText(al), { x: marginX, y: contentY, size: 8, font: fontRegular, color: rgb(0.25, 0.25, 0.25) });
+      contentY -= 14;
+      page1.drawText(safePdfText(al), { x: marginX, y: contentY, size: 11, font: fontRegular, color: COLOR_BLACK });
     }
   }
 
-  // Opening text (Dengan Hormat,)
+  // 3. Jarak 1 baris kosong antara baris terakhir alamat customer dengan "Dengan Hormat,"
+  contentY -= 28;
+  page1.drawText('Dengan Hormat,', { x: marginX, y: contentY, size: 12, font: fontBold, color: COLOR_BLACK });
   contentY -= 15;
-  page1.drawText('Dengan Hormat,', { x: marginX, y: contentY, size: 8.5, font: fontBold, color: rgb(0, 0, 0) });
-  contentY -= 12;
 
+  // Paragraf Pembuka dengan Perataan Justify (12pt font)
   const introText = 'Menindaklanjuti mengenai permintaan Kalibrasi alat Kesehatan, PT. Sarana Multi Kalibrasi telah memiliki izin dari Kementrian Kesehatan dengan No. 26062301565850001, Sertifikat Akreditasi KAN LK-532-IDN serta menerapkan Standar SNI ISO/ IEC 17025: 2017, melampirkan harga penawaran, adapun ketentuan yang berlaku sebagai berikut:';
-  const introLines = wrapPdfText(introText, 88);
-  for (const line of introLines) {
-    page1.drawText(safePdfText(line), { x: marginX, y: contentY, size: 8, font: fontRegular, color: rgb(0.15, 0.15, 0.15) });
-    contentY -= 11;
-  }
-  contentY -= 2;
+  contentY = drawJustifiedPdfParagraph(page1, introText, marginX, contentY, printableWidth, 12, fontRegular, COLOR_DARK, 15);
+  
+  // 4. Jarak 1 baris kosong antara kalimat "...sebagai berikut:" dengan poin 1 di bawahnya
+  contentY -= 15;
 
-  // 9 Terms and conditions
+  // 9 Poin Ketentuan Resmi dengan Penomoran Rapi & Line Spacing Lega (Justified, 12pt font)
   const isPpnInc = data.isPpnIncluded !== false && data.isPpnIncluded !== 'false';
   const terms = [
     isPpnInc ? 'Harga sudah termasuk PPN 11%.' : 'Harga belum termasuk PPN 11%.',
@@ -460,70 +715,99 @@ export async function createAuthenticSphPdf(
     'Apabila terdapat penambahan alat pada saat kalibrasi, segera dimutakhirkan BO (Bukti Order) dan di setujui pelanggan.',
     'Pekerjaan dianggap selesai setelah berita acara/BO (Bukti Order) di tanda tangani oleh pihak yang berwenang.',
     'Kalibrasi di atas termasuk sertifikat kalibrasi yang dikeluarkan oleh PT. Sarana Multi Kalibrasi.',
-    `Pembayaran : ${data.bankName || 'Bank Mandiri Cab. Surakarta'}\n               No. Rek : ${data.bankAccountNumber || '138-00-2610846-9'} (${data.bankAccountName || 'SARANA MULTI KALIBRASI PT'})`
+    `Pembayaran : ${data.bankName || 'Bank Mandiri Cab. Surakarta'}\nNo. Rek : ${data.bankAccountNumber || '138-00-2610846-9'} (${data.bankAccountName || 'SARANA MULTI KALIBRASI PT'})`
   ];
 
-  for (let i = 0; i < terms.length; i++) {
-    const prefix = `${i + 1}. `;
-    const termItem = terms[i];
-    const subLines = termItem.split('\n');
+  const numX = marginX + 6;
+  const termTextX = marginX + 24;
+  const termTextWidth = printableWidth - 24;
 
-    for (let s = 0; s < subLines.length; s++) {
-      const lineStr = subLines[s];
-      const wrapped = wrapPdfText(lineStr, 82);
-      if (s === 0) {
-        page1.drawText(prefix, { x: marginX + 8, y: contentY, size: 8, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-        page1.drawText(safePdfText(wrapped[0]), { x: marginX + 20, y: contentY, size: 8, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-        contentY -= 10.5;
-        for (let l = 1; l < wrapped.length; l++) {
-          page1.drawText(safePdfText(wrapped[l]), { x: marginX + 20, y: contentY, size: 8, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-          contentY -= 10.5;
-        }
-      } else {
-        page1.drawText(safePdfText(lineStr), { x: marginX + 20, y: contentY, size: 8, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-        contentY -= 10.5;
-      }
+  for (let i = 0; i < terms.length; i++) {
+    const numStr = `${i + 1}.`;
+    const termItem = terms[i];
+    
+    if (i === 8) {
+      // Item 9: Pembayaran Bank dengan TEPAT 1 BARIS KOSONG sebelum "No. Rek :"
+      page1.drawText(numStr, { x: numX, y: contentY, size: 12, font: fontRegular, color: COLOR_BLACK });
+      page1.drawText(`Pembayaran : ${data.bankName || 'Bank Mandiri Cab. Surakarta'}`, { x: termTextX, y: contentY, size: 12, font: fontRegular, color: COLOR_BLACK });
+      // Jarak 1 baris kosong (~22 pt):
+      contentY -= 22;
+      page1.drawText(`No. Rek : ${data.bankAccountNumber || '138-00-2610846-9'} (${data.bankAccountName || 'SARANA MULTI KALIBRASI PT'})`, { x: termTextX + 82, y: contentY, size: 12, font: fontBold, color: COLOR_BLACK });
+      contentY -= 15;
+    } else {
+      page1.drawText(numStr, { x: numX, y: contentY, size: 12, font: fontRegular, color: COLOR_BLACK });
+      contentY = drawJustifiedPdfParagraph(page1, termItem, termTextX, contentY, termTextWidth, 12, fontRegular, COLOR_BLACK, 15);
+      contentY -= 3; // Jarak antar poin
     }
   }
 
-  contentY -= 3;
+  // 1 baris kosong SEBELUM paragraf permohonan persetujuan:
+  contentY -= 10;
   const closing1 = 'Bersama ini kami bermaksud mengajukan permohonan persetujuan Surat Penawaran Harga.';
-  page1.drawText(safePdfText(closing1), { x: marginX, y: contentY, size: 8, font: fontRegular, color: rgb(0.15, 0.15, 0.15) });
-  contentY -= 11;
+  contentY = drawJustifiedPdfParagraph(page1, closing1, marginX, contentY, printableWidth, 12, fontRegular, COLOR_DARK, 15);
 
+  // 1 baris kosong SESUDAH paragraf permohonan persetujuan & SEBELUM paragraf marketing:
+  contentY -= 10;
   const marketingInfo = `Untuk informasi lebih lanjut dapat menghubungi marketing kami di : ${data.marketingStaffPhone || '0812-4484-2383'} (${data.marketingStaffName || 'Ari'}). Demikian, atas perhatian dan kerjasamanya kami ucapkan terimakasih.`;
-  const closing2Lines = wrapPdfText(marketingInfo, 88);
-  for (const cl of closing2Lines) {
-    page1.drawText(safePdfText(cl), { x: marginX, y: contentY, size: 8, font: fontRegular, color: rgb(0.15, 0.15, 0.15) });
-    contentY -= 10.5;
-  }
+  contentY = drawJustifiedPdfParagraph(page1, marketingInfo, marginX, contentY, printableWidth, 12, fontRegular, COLOR_DARK, 15);
 
-  // Signatures on Page 1 (guaranteed well above 3.0 cm bottom margin = 85.04 pt)
-  const minBottomMarginPt = 3.0 * CM_TO_PT; // 85.04 pt from bottom
-  const sigY = Math.max(contentY - 12, minBottomMarginPt + 75);
+  // Signatures on Page 1:
+  // Spasi antara paragraf penutup marketing dan blok tanda tangan dibuat lebih rapat/dekat (tetap ada sedikit jarak, tidak menempel)
+  const sigHeaderY = contentY - 12; // Jarak rapat & pas di bawah kalimat penutup
+  const sigGapPt = 2.6 * CM_TO_PT; // ~73.7 pt ruang tanda tangan
+  const minBottomMarginPt = 2.8 * CM_TO_PT; // 79.37 pt from bottom edge
+  const sigLineY = sigHeaderY - sigGapPt;
 
-  // Left: PT SMK
-  page1.drawText('PT. SARANA MULTI KALIBRASI', { x: marginX, y: sigY, size: 8.5, font: fontBold, color: rgb(0, 0, 0) });
+  // Definisikan titik tengah (center X) untuk kolom kiri (PT SMK) dan kolom kanan (Pelanggan)
+  const leftColWidth = 210;
+  const leftColCenterX = marginX + leftColWidth / 2;
+
+  const rightColWidth = 210;
+  const rightColCenterX = rightX - rightColWidth / 2;
+
+  // ================= Kolom Kiri: PT. SARANA MULTI KALIBRASI (Rata Tengah) =================
+  // Header perusahaan: tetap ukuran normal (12pt font bold)
+  const ptSmkStr = 'PT. SARANA MULTI KALIBRASI';
+  const ptSmkW = fontBold.widthOfTextAtSize(ptSmkStr, 12);
+  page1.drawText(ptSmkStr, { x: leftColCenterX - ptSmkW / 2, y: sigHeaderY, size: 12, font: fontBold, color: COLOR_BLACK });
+
+  // Gambar tanda tangan digital (center)
   if (embeddedSigImg) {
-    page1.drawImage(embeddedSigImg, { x: marginX, y: sigY - 38, width: 85, height: 34 });
+    const imgW = 95;
+    const imgH = 38;
+    page1.drawImage(embeddedSigImg, { x: leftColCenterX - imgW / 2, y: sigLineY + 6, width: imgW, height: imgH });
   }
-  page1.drawText(safePdfText(data.directorName || 'Ahmad Fajar Ariyanto'), { x: marginX, y: sigY - 44, size: 8.5, font: fontBold, color: rgb(0, 0, 0) });
-  page1.drawLine({ start: { x: marginX, y: sigY - 46 }, end: { x: marginX + 140, y: sigY - 46 }, thickness: 0.8, color: rgb(0.2, 0.2, 0.2) });
-  page1.drawText(safePdfText(data.directorTitle || 'Direktur'), { x: marginX, y: sigY - 56, size: 8, font: fontRegular, color: rgb(0.2, 0.2, 0.2) });
 
-  // Right: Pelanggan
-  page1.drawText('Disetujui oleh Pelanggan,', { x: rightX - 160, y: sigY, size: 8.5, font: fontBold, color: rgb(0, 0, 0) });
-  page1.drawText('( ……………………………… )', { x: rightX - 160, y: sigY - 44, size: 8.5, font: fontBold, color: rgb(0, 0, 0) });
+  // Nama Direktur: Rata tengah dengan font 11pt (bold)
+  const dirNameStr = safePdfText(data.directorName || 'Ahmad Fajar Ariyanto');
+  const dirNameW = fontBold.widthOfTextAtSize(dirNameStr, 11);
+  page1.drawText(dirNameStr, { x: leftColCenterX - dirNameW / 2, y: sigLineY, size: 11, font: fontBold, color: COLOR_BLACK });
 
-  // Tembusan & Catatan if provided (only if space allows above 3 cm bottom margin)
-  let noteY = sigY - 68;
+  // Jabatan Direktur: Rata tengah dengan font 11pt (normal)
+  const dirTitleStr = safePdfText(data.directorTitle || 'Direktur');
+  const dirTitleW = fontRegular.widthOfTextAtSize(dirTitleStr, 11);
+  page1.drawText(dirTitleStr, { x: leftColCenterX - dirTitleW / 2, y: sigLineY - 14, size: 11, font: fontRegular, color: COLOR_BLACK });
+
+  // ================= Kolom Kanan: Disetujui oleh Pelanggan (Rata Tengah) =================
+  // Header persetujuan: tetap ukuran normal (12pt font bold)
+  const custLabelStr = 'Disetujui oleh Pelanggan,';
+  const custLabelW = fontBold.widthOfTextAtSize(custLabelStr, 12);
+  page1.drawText(custLabelStr, { x: rightColCenterX - custLabelW / 2, y: sigHeaderY, size: 12, font: fontBold, color: COLOR_BLACK });
+
+  // Titik-titik nama pelanggan: font 11pt
+  const custNameStr = '( ……………………………… )';
+  const custNameW = fontRegular.widthOfTextAtSize(custNameStr, 11);
+  page1.drawText(custNameStr, { x: rightColCenterX - custNameW / 2, y: sigLineY, size: 11, font: fontRegular, color: COLOR_BLACK });
+
+  // Tembusan & Catatan if provided
+  let noteY = sigLineY - 26;
   if (noteY > minBottomMarginPt) {
     if (data.tembusan && data.tembusan !== '-') {
-      page1.drawText(safePdfText(`Tembusan: ${data.tembusan}`), { x: marginX, y: noteY, size: 7.5, font: fontRegular, color: rgb(0.35, 0.35, 0.35) });
-      noteY -= 9;
+      page1.drawText(safePdfText(`Tembusan: ${data.tembusan}`), { x: marginX, y: noteY, size: 11, font: fontRegular, color: COLOR_MUTED });
+      noteY -= 13;
     }
     if (data.notes && data.notes !== '-' && noteY > minBottomMarginPt) {
-      page1.drawText(safePdfText(`Catatan: ${data.notes}`), { x: marginX, y: noteY, size: 7.5, font: fontRegular, color: rgb(0.35, 0.35, 0.35) });
+      page1.drawText(safePdfText(`Catatan: ${data.notes}`), { x: marginX, y: noteY, size: 11, font: fontRegular, color: COLOR_MUTED });
     }
   }
 
@@ -531,120 +815,89 @@ export async function createAuthenticSphPdf(
   // HALAMAN 2+: LAMPIRAN RINCIAN PENAWARAN HARGA (TABEL PERANGKAT)
   // Clean canvas for pre-printed letterhead paper (tanpa kop surat & logo)
   // =========================================================================
-  const rawItems = Array.isArray(data.items) ? data.items : [];
-  const items = rawItems.length > 0 ? rawItems : [
-    { no: 1, description: 'Jasa Kalibrasi Alat Kesehatan', quantity: 1, unit: 'Unit', unitPrice: data.grandTotal || '0', totalPrice: data.grandTotal || '0' }
-  ];
-
-  const totalQty = items.reduce((acc, it) => acc + (Number(it.quantity) || 1), 0);
-
-  // Pagination for items: up to 20 items per page
-  const itemsPerPage = 20;
-  const totalPages = Math.max(1, Math.ceil(items.length / itemsPerPage));
-
-  for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
+  for (let cIdx = 0; cIdx < tableChunks.length; cIdx++) {
+    const chunk = tableChunks[cIdx];
     const pageN = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    drawHeaderInfo(pageN);
 
-    // Top Metadata on Lampiran Page (same exact cm positions: 4.0cm, 4.5cm, 5.0cm, line 5.5cm)
-    const metaNY = yFromTop(4.0);
-    pageN.drawText('Nomor', { x: marginX, y: metaNY, size: 8.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-    pageN.drawText(':', { x: marginX + 48, y: metaNY, size: 8.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-    pageN.drawText(safePdfText(data.sphNumber || '-'), { x: marginX + 58, y: metaNY, size: 8.5, font: fontBold, color: rgb(0, 0, 0) });
-
-    const perihalNY = yFromTop(4.5);
-    pageN.drawText('Perihal', { x: marginX, y: perihalNY, size: 8.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-    pageN.drawText(':', { x: marginX + 48, y: perihalNY, size: 8.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-    pageN.drawText(safePdfText(data.subject || 'Surat Penawaran Harga Kalibrasi'), { x: marginX + 58, y: perihalNY, size: 8.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-
-    const lampiranNY = yFromTop(5.0);
-    pageN.drawText('Lampiran', { x: marginX, y: lampiranNY, size: 8.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-    pageN.drawText(':', { x: marginX + 48, y: lampiranNY, size: 8.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-    pageN.drawText(safePdfText(data.attachmentPages || '1 Lembar'), { x: marginX + 58, y: lampiranNY, size: 8.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
-
-    // Divider line at 5.5 cm
-    const lineNY = yFromTop(5.5);
-    pageN.drawLine({
-      start: { x: marginX, y: lineNY },
-      end: { x: rightX, y: lineNY },
-      thickness: 0.8,
-      color: rgb(0.15, 0.15, 0.15)
-    });
-
-    // Centered Framed Box: "Surat Penawaran Harga" (around 6.3 cm)
-    const titleBoxW = 200;
-    const titleBoxH = 17;
-    const titleBoxX = (PAGE_WIDTH - titleBoxW) / 2;
-    const titleBoxY = yFromTop(6.3);
-
-    pageN.drawRectangle({
-      x: titleBoxX,
-      y: titleBoxY,
-      width: titleBoxW,
-      height: titleBoxH,
-      borderColor: rgb(0, 0, 0),
-      borderWidth: 0.8,
-      color: rgb(1, 1, 1)
-    });
-    pageN.drawText('Surat Penawaran Harga', {
-      x: titleBoxX + 36,
-      y: titleBoxY + 4.5,
-      size: 9.5,
-      font: fontBold,
-      color: rgb(0, 0, 0)
-    });
-
-    // Table Setup
-    // Columns: No (28), Diskripsi (184), Qty (30), Satuan (42), Satuan Harga (78), Total Harga (125.28) = 487.28 pt
+    // Table Setup: Full width matching Page 1 margins (from marginX to rightX = printableWidth = 538.59 pt)
+    // Columns: No (30), Diskripsi (205), Qty (38), Satuan (48), Satuan Harga (107), Total Harga (110.59)
     const colX = {
       no: marginX,
-      desc: marginX + 28,
-      qty: marginX + 212,
-      unit: marginX + 242,
-      price: marginX + 284,
-      total: marginX + 362,
-      end: rightX
+      desc: marginX + 30,
+      qty: marginX + 30 + 205,         // marginX + 235
+      unit: marginX + 30 + 205 + 38,    // marginX + 273
+      price: marginX + 30 + 205 + 38 + 48, // marginX + 321
+      total: marginX + 30 + 205 + 38 + 48 + 107, // marginX + 428
+      end: rightX // marginX + 538.59
     };
-    const tableWidth = colX.end - colX.no; // 487.28 pt
+    const tableWidth = colX.end - colX.no;
 
-    let tableY = titleBoxY - 14;
-    const thH = 16;
+    let tableY: number;
 
-    // Header Background: Clean cyan/light gray with solid border
-    pageN.drawRectangle({
-      x: colX.no,
-      y: tableY - thH,
-      width: tableWidth,
-      height: thH,
-      color: rgb(0.92, 0.95, 0.98),
-      borderColor: rgb(0, 0, 0),
-      borderWidth: 0.8
-    });
+    if (cIdx === 0) {
+      // Halaman 1 Tabel: Judul Dokumen "Surat Penawaran Harga" & Header Kolom (Biru Muda)
+      const titleStr = 'Surat Penawaran Harga';
+      const titleWidth = fontBold.widthOfTextAtSize(titleStr, 12);
+      const titleX = marginX + (printableWidth - titleWidth) / 2;
+      const titleY = yFromTop(6.1);
 
-    // Vertical borders for header
-    [colX.desc, colX.qty, colX.unit, colX.price, colX.total].forEach((vx) => {
-      pageN.drawLine({
-        start: { x: vx, y: tableY },
-        end: { x: vx, y: tableY - thH },
-        thickness: 0.8,
-        color: rgb(0, 0, 0)
+      pageN.drawText(titleStr, {
+        x: titleX,
+        y: titleY,
+        size: 12,
+        font: fontBold,
+        color: COLOR_BLACK
       });
-    });
 
-    // Header Text
-    pageN.drawText('No.', { x: colX.no + 7, y: tableY - 11, size: 8, font: fontBold, color: rgb(0, 0, 0) });
-    pageN.drawText('Diskripsi', { x: colX.desc + 65, y: tableY - 11, size: 8, font: fontBold, color: rgb(0, 0, 0) });
-    pageN.drawText('Qty', { x: colX.qty + 6, y: tableY - 11, size: 8, font: fontBold, color: rgb(0, 0, 0) });
-    pageN.drawText('Satuan', { x: colX.unit + 6, y: tableY - 11, size: 8, font: fontBold, color: rgb(0, 0, 0) });
-    pageN.drawText('Satuan Harga', { x: colX.price + 10, y: tableY - 11, size: 8, font: fontBold, color: rgb(0, 0, 0) });
-    pageN.drawText('Total Harga', { x: colX.total + 36, y: tableY - 11, size: 8, font: fontBold, color: rgb(0, 0, 0) });
+      tableY = titleY - 18;
+      const thH = 22; // Table header height for 12pt font
 
-    tableY -= thH;
+      // Header Background: BIRU MUDA IDENTIK (#00A2E8) sama dengan baris Jumlah & GRAND TOTAL, Teks HITAM BOLD
+      pageN.drawRectangle({
+        x: colX.no,
+        y: tableY - thH,
+        width: tableWidth,
+        height: thH,
+        color: COLOR_LIGHT_BLUE,
+        borderColor: COLOR_BLACK,
+        borderWidth: 0.8
+      });
+
+      // Vertical borders for header (black border)
+      [colX.desc, colX.qty, colX.unit, colX.price, colX.total].forEach((vx) => {
+        pageN.drawLine({
+          start: { x: vx, y: tableY },
+          end: { x: vx, y: tableY - thH },
+          thickness: 0.8,
+          color: COLOR_BLACK
+        });
+      });
+
+      // Header Text: Hitam Bold 12pt, terpusat rapi (konsisten dengan baris Jumlah & GRAND TOTAL)
+      const noHeaderW = fontBold.widthOfTextAtSize('No.', 12);
+      pageN.drawText('No.', { x: colX.no + (30 - noHeaderW) / 2, y: tableY - 15.5, size: 12, font: fontBold, color: COLOR_BLACK });
+      const descHeaderW = fontBold.widthOfTextAtSize('Diskripsi', 12);
+      pageN.drawText('Diskripsi', { x: colX.desc + (205 - descHeaderW) / 2, y: tableY - 15.5, size: 12, font: fontBold, color: COLOR_BLACK });
+      const qtyHeaderW = fontBold.widthOfTextAtSize('Qty', 12);
+      pageN.drawText('Qty', { x: colX.qty + (38 - qtyHeaderW) / 2, y: tableY - 15.5, size: 12, font: fontBold, color: COLOR_BLACK });
+      const unitHeaderW = fontBold.widthOfTextAtSize('Satuan', 12);
+      pageN.drawText('Satuan', { x: colX.unit + (48 - unitHeaderW) / 2, y: tableY - 15.5, size: 12, font: fontBold, color: COLOR_BLACK });
+      const priceHeaderW = fontBold.widthOfTextAtSize('Satuan Harga', 12);
+      pageN.drawText('Satuan Harga', { x: colX.price + (107 - priceHeaderW) / 2, y: tableY - 15.5, size: 12, font: fontBold, color: COLOR_BLACK });
+      const totalHeaderW = fontBold.widthOfTextAtSize('Total Harga', 12);
+      pageN.drawText('Total Harga', { x: colX.total + (110.59 - totalHeaderW) / 2, y: tableY - 15.5, size: 12, font: fontBold, color: COLOR_BLACK });
+
+      tableY -= thH;
+    } else {
+      // Halaman Lanjutan (Halaman 2, 3, dst dari tabel):
+      // Tanpa Judul Dokumen & Tanpa Header Kolom - Langsung menyambung baris data dengan garis batas atas
+      tableY = yFromTop(5.6);
+    }
 
     // Table Data Rows
-    const startIdx = pageIdx * itemsPerPage;
-    const endIdx = Math.min(startIdx + itemsPerPage, items.length);
-    const pageItems = items.slice(startIdx, endIdx);
-    const rowH = 14;
+    const pageItems = chunk.items;
+    const rowH = 21; // Cell height for 12pt font
 
     for (let r = 0; r < pageItems.length; r++) {
       const it = pageItems[r];
@@ -656,9 +909,9 @@ export async function createAuthenticSphPdf(
         y: rowY - rowH,
         width: tableWidth,
         height: rowH,
-        borderColor: rgb(0, 0, 0),
+        borderColor: COLOR_BORDER,
         borderWidth: 0.5,
-        color: rgb(1, 1, 1)
+        color: COLOR_WHITE
       });
 
       // Vertical cell dividers
@@ -667,123 +920,200 @@ export async function createAuthenticSphPdf(
           start: { x: vx, y: rowY },
           end: { x: vx, y: rowY - rowH },
           thickness: 0.5,
-          color: rgb(0, 0, 0)
+          color: COLOR_BORDER
         });
       });
 
-      const itemNo = safePdfText(it.no || startIdx + r + 1);
+      const itemNo = safePdfText(it.no || chunk.startIndex + r + 1);
       const itemDesc = safePdfText(it.description || it.namaAlat || '-').substring(0, 42);
       const itemQty = safePdfText(it.quantity || '1');
       const itemUnit = safePdfText(it.unit || 'Unit');
-      const itemPrice = formatCurrencyPdf(it.unitPrice || '0');
-      const itemTotal = formatCurrencyPdf(it.totalPrice || '0');
+      const priceNumStr = formatNumberOnly(it.unitPrice || '0');
+      const totalNumStr = formatNumberOnly(it.totalPrice || '0');
 
-      // Center No
-      pageN.drawText(itemNo, { x: colX.no + (itemNo.length > 1 ? 6 : 10), y: rowY - 10, size: 7.5, font: fontRegular });
-      // Left Diskripsi
-      pageN.drawText(itemDesc, { x: colX.desc + 4, y: rowY - 10, size: 7.5, font: fontRegular });
-      // Center Qty
-      pageN.drawText(itemQty, { x: colX.qty + 10, y: rowY - 10, size: 7.5, font: fontRegular });
-      // Center Unit
-      pageN.drawText(itemUnit, { x: colX.unit + 9, y: rowY - 10, size: 7.5, font: fontRegular });
-      // Right Satuan Harga
-      pageN.drawText(itemPrice, { x: colX.price + 5, y: rowY - 10, size: 7.5, font: fontRegular });
-      // Right Total Harga
-      pageN.drawText(itemTotal, { x: colX.total + 28, y: rowY - 10, size: 7.5, font: fontRegular });
+      // Center No. (12pt font)
+      const noW = fontRegular.widthOfTextAtSize(itemNo, 12);
+      pageN.drawText(itemNo, { x: colX.no + (30 - noW) / 2, y: rowY - 15, size: 12, font: fontRegular, color: COLOR_BLACK });
+
+      // Left Diskripsi (RATA KIRI KONSISTEN dengan 6pt padding, 12pt font)
+      pageN.drawText(itemDesc, { x: colX.desc + 6, y: rowY - 15, size: 12, font: fontRegular, color: COLOR_BLACK });
+
+      // Center Qty (12pt font)
+      const qtyW = fontRegular.widthOfTextAtSize(itemQty, 12);
+      pageN.drawText(itemQty, { x: colX.qty + (38 - qtyW) / 2, y: rowY - 15, size: 12, font: fontRegular, color: COLOR_BLACK });
+
+      // Center Unit (12pt font)
+      const unitW = fontRegular.widthOfTextAtSize(itemUnit, 12);
+      pageN.drawText(itemUnit, { x: colX.unit + (48 - unitW) / 2, y: rowY - 15, size: 12, font: fontRegular, color: COLOR_BLACK });
+
+      // Satuan Harga: "Rp" on left, number right-aligned (12pt font)
+      pageN.drawText('Rp', { x: colX.price + 5, y: rowY - 15, size: 12, font: fontRegular, color: COLOR_BLACK });
+      const priceW = fontRegular.widthOfTextAtSize(priceNumStr, 12);
+      pageN.drawText(priceNumStr, { x: colX.total - priceW - 5, y: rowY - 15, size: 12, font: fontRegular, color: COLOR_BLACK });
+
+      // Total Harga: "Rp" on left, number right-aligned (12pt font)
+      pageN.drawText('Rp', { x: colX.total + 5, y: rowY - 15, size: 12, font: fontRegular, color: COLOR_BLACK });
+      const totalW = fontRegular.widthOfTextAtSize(totalNumStr, 12);
+      pageN.drawText(totalNumStr, { x: colX.end - totalW - 5, y: rowY - 15, size: 12, font: fontRegular, color: COLOR_BLACK });
 
       tableY -= rowH;
     }
 
-    // IF LAST PAGE: Draw Summary Block (5 rows) & Terbilang Box & Footnotes
-    if (pageIdx === totalPages - 1) {
-      const summaryRowH = 13.5;
+    // IF CHUNK HAS SUMMARY: Draw Summary Block (Jumlah + Breakdown) & Terbilang Box & Footnotes
+    if (chunk.hasSummary) {
+      const summaryRowH = 21; // 21pt height for 12pt font
 
-      // Row 1: Jumlah & Total 1
-      pageN.drawRectangle({ x: colX.no, y: tableY - summaryRowH, width: tableWidth, height: summaryRowH, borderColor: rgb(0, 0, 0), borderWidth: 0.5, color: rgb(1, 1, 1) });
-      [colX.desc, colX.qty, colX.unit, colX.price, colX.total].forEach(vx => {
-        pageN.drawLine({ start: { x: vx, y: tableY }, end: { x: vx, y: tableY - summaryRowH }, thickness: 0.5, color: rgb(0, 0, 0) });
+      // Row 1: Baris "Jumlah" (Background BIRU MUDA di sisi Jumlah Qty, Putih di Total 1)
+      pageN.drawRectangle({
+        x: colX.no,
+        y: tableY - summaryRowH,
+        width: colX.price - colX.no,
+        height: summaryRowH,
+        borderColor: COLOR_BORDER,
+        borderWidth: 0.5,
+        color: COLOR_LIGHT_BLUE
       });
-      pageN.drawText('Jumlah', { x: colX.desc + 65, y: tableY - 9.5, size: 7.5, font: fontBold });
-      pageN.drawText(String(totalQty), { x: colX.qty + 8, y: tableY - 9.5, size: 7.5, font: fontBold });
-      pageN.drawText('Unit', { x: colX.unit + 9, y: tableY - 9.5, size: 7.5, font: fontRegular });
-      pageN.drawText('Total 1', { x: colX.price + 16, y: tableY - 9.5, size: 7.5, font: fontBold });
-      pageN.drawText(formatCurrencyPdf(data.subtotal1), { x: colX.total + 28, y: tableY - 9.5, size: 7.5, font: fontBold });
+
+      // Right part (Total 1: colX.price to colX.end): Background PUTIH polos, teks bold
+      pageN.drawRectangle({
+        x: colX.price,
+        y: tableY - summaryRowH,
+        width: colX.end - colX.price,
+        height: summaryRowH,
+        borderColor: COLOR_BORDER,
+        borderWidth: 0.5,
+        color: COLOR_WHITE
+      });
+
+      [colX.desc, colX.qty, colX.unit, colX.price, colX.total].forEach(vx => {
+        pageN.drawLine({ start: { x: vx, y: tableY }, end: { x: vx, y: tableY - summaryRowH }, thickness: 0.5, color: COLOR_BORDER });
+      });
+
+      const jmlLblW = fontBold.widthOfTextAtSize('Jumlah', 12);
+      pageN.drawText('Jumlah', { x: colX.desc + (205 - jmlLblW) / 2, y: tableY - 15, size: 12, font: fontBold, color: COLOR_BLACK });
+      const totalQtyStr = String(totalQty);
+      const tqW = fontBold.widthOfTextAtSize(totalQtyStr, 12);
+      pageN.drawText(totalQtyStr, { x: colX.qty + (38 - tqW) / 2, y: tableY - 15, size: 12, font: fontBold, color: COLOR_BLACK });
+      const unitLblW = fontBold.widthOfTextAtSize('Unit', 12);
+      pageN.drawText('Unit', { x: colX.unit + (48 - unitLblW) / 2, y: tableY - 15, size: 12, font: fontBold, color: COLOR_BLACK });
+      
+      // Total 1 label (RATA KANAN) & value (12pt font)
+      const t1Label = 'Total 1';
+      const t1LblW = fontBold.widthOfTextAtSize(t1Label, 12);
+      pageN.drawText(t1Label, { x: colX.total - t1LblW - 6, y: tableY - 15, size: 12, font: fontBold, color: COLOR_BLACK });
+      
+      pageN.drawText('Rp', { x: colX.total + 5, y: tableY - 15, size: 12, font: fontBold, color: COLOR_BLACK });
+      const subtotal1NumStr = formatNumberOnly(data.subtotal1);
+      const st1W = fontBold.widthOfTextAtSize(subtotal1NumStr, 12);
+      pageN.drawText(subtotal1NumStr, { x: colX.end - st1W - 5, y: tableY - 15, size: 12, font: fontBold, color: COLOR_BLACK });
+      
       tableY -= summaryRowH;
 
-      // Next 4 Summary rows: Akomodasi, Total 2, PPN 11%, GRAND TOTAL
+      // Kotak Total Terpisah di Sisi Kanan Bawah:
+      // Baris Akomodasi (Putih), Total 2 (Putih), PPN 11% (Putih), GRAND TOTAL (Biru Muda)
+      // SEMUA LABEL DIRATAKAN RATA KANAN (12pt font)
       const summaryRows = [
-        { label: 'Akomodasi', val: data.accommodationFee ? formatCurrencyPdf(data.accommodationFee) : 'Rp -', isGrand: false },
-        { label: 'Total 2', val: formatCurrencyPdf(data.subtotal2 || data.subtotal1), isGrand: false },
-        { label: isPpnInc ? 'PPN 11%' : 'PPN 11% (Non)', val: formatCurrencyPdf(data.ppnAmount), isGrand: false },
-        { label: 'GRAND TOTAL', val: formatCurrencyPdf(data.grandTotal), isGrand: true }
+        { label: 'Akomodasi', valStr: formatNumberOnly(data.accommodationFee), isGrand: false },
+        { label: 'Total 2', valStr: formatNumberOnly(data.subtotal2 || data.subtotal1), isGrand: false },
+        { label: isPpnInc ? 'PPN 11%' : 'PPN 11% (Non)', valStr: formatNumberOnly(data.ppnAmount), isGrand: false },
+        { label: 'GRAND TOTAL', valStr: formatNumberOnly(data.grandTotal), isGrand: true }
       ];
 
       for (let s = 0; s < summaryRows.length; s++) {
         const sr = summaryRows[s];
-        const isCyan = sr.isGrand;
+        const isGrand = sr.isGrand;
 
+        // Cell background & border for summary row
         pageN.drawRectangle({
           x: colX.price,
           y: tableY - summaryRowH,
           width: colX.end - colX.price,
           height: summaryRowH,
-          borderColor: rgb(0, 0, 0),
+          borderColor: COLOR_BORDER,
           borderWidth: 0.5,
-          color: isCyan ? rgb(0.88, 0.94, 0.98) : rgb(1, 1, 1)
+          color: isGrand ? COLOR_LIGHT_BLUE : COLOR_WHITE
         });
 
+        // Vertical divider between label and value
         pageN.drawLine({
           start: { x: colX.total, y: tableY },
           end: { x: colX.total, y: tableY - summaryRowH },
           thickness: 0.5,
-          color: rgb(0, 0, 0)
+          color: COLOR_BORDER
         });
 
+        // Label diratakan RATA KANAN sebelum garis divider (12pt font)
+        const lblW = fontBold.widthOfTextAtSize(sr.label, 12);
         pageN.drawText(sr.label, {
-          x: colX.price + (isCyan ? 8 : 12),
-          y: tableY - 9.5,
-          size: 7.5,
+          x: colX.total - lblW - 6,
+          y: tableY - 15,
+          size: 12,
           font: fontBold,
-          color: rgb(0, 0, 0)
+          color: COLOR_BLACK
         });
 
-        pageN.drawText(sr.val, {
-          x: colX.total + 28,
-          y: tableY - 9.5,
-          size: 7.5,
+        // "Rp" and right-aligned amount (12pt font)
+        pageN.drawText('Rp', {
+          x: colX.total + 5,
+          y: tableY - 15,
+          size: 12,
           font: fontBold,
-          color: rgb(0, 0, 0)
+          color: COLOR_BLACK
+        });
+
+        const valW = fontBold.widthOfTextAtSize(sr.valStr, 12);
+        pageN.drawText(sr.valStr, {
+          x: colX.end - valW - 5,
+          y: tableY - 15,
+          size: 12,
+          font: fontBold,
+          color: COLOR_BLACK
         });
 
         tableY -= summaryRowH;
       }
 
-      // Left Box: Terbilang Box (spanning from x=colX.no to colX.price, height = 4 * summaryRowH = 54 pt)
+      // Kotak Terbilang Terpisah di Sisi Kiri Bawah (spanning colX.no to colX.price, height = 4 * summaryRowH = 84 pt)
+      const terbilangBoxW = colX.price - colX.no;
       const terbilangBoxH = 4 * summaryRowH;
       const terbilangTopY = tableY + terbilangBoxH;
 
       pageN.drawRectangle({
         x: colX.no,
         y: tableY,
-        width: colX.price - colX.no,
+        width: terbilangBoxW,
         height: terbilangBoxH,
-        borderColor: rgb(0, 0, 0),
+        borderColor: COLOR_BORDER,
         borderWidth: 0.5,
-        color: rgb(1, 1, 1)
+        color: COLOR_WHITE
       });
 
-      pageN.drawText('Terbilang:', { x: colX.no + 6, y: terbilangTopY - 10, size: 7.5, font: fontBold });
+      // 1. Label "Terbilang:" -> RATA KIRI dan ITALIC (12pt font)
+      const terbilangHeaderStr = 'Terbilang:';
+      pageN.drawText(terbilangHeaderStr, { 
+        x: colX.no + 8, 
+        y: terbilangTopY - 16, 
+        size: 12, 
+        font: fontBoldOblique, 
+        color: COLOR_BLACK 
+      });
+      
+      // 2. Kalimat Angka Terbilang -> DIRATAKAN CENTER & DIMIRINGKAN (ITALIC) di baris bawah label (12pt font)
       if (data.terbilang) {
-        const terbilangLines = wrapPdfText(`"${data.terbilang}"`, 44);
-        let tY = terbilangTopY - 21;
+        const rawTerbilang = data.terbilang.startsWith('"') ? data.terbilang : `"${data.terbilang}"`;
+        const terbilangLines = wrapPdfText(rawTerbilang, 34);
+        let tY = terbilangTopY - 34;
         for (const tl of terbilangLines.slice(0, 3)) {
-          pageN.drawText(safePdfText(tl), { x: colX.no + 6, y: tY, size: 7, font: fontOblique, color: rgb(0.1, 0.1, 0.1) });
-          tY -= 9;
+          const lineText = safePdfText(tl);
+          const lineW = fontBoldOblique.widthOfTextAtSize(lineText, 12);
+          const lineX = colX.no + (terbilangBoxW - lineW) / 2;
+          pageN.drawText(lineText, { x: lineX, y: tY, size: 12, font: fontBoldOblique, color: COLOR_BLACK });
+          tY -= 15;
         }
       }
 
-      // Footnotes under Table (Asterisks)
-      tableY -= 10;
+      // Footnotes under Table (Asterisks) with italic styling (10.5pt font)
+      tableY -= 14;
       const footnotes = [
         '*Hanya dilakukan Uji Keselamatan Listrik dan/atau Uji Fungsi dan Kondisi Alat',
         '**Alat dilakukan penarikan ke PT Sarana Multi Kalibrasi',
@@ -796,11 +1126,11 @@ export async function createAuthenticSphPdf(
           pageN.drawText(safePdfText(fn), {
             x: colX.no,
             y: tableY,
-            size: 6.8,
-            font: fontRegular,
-            color: rgb(0.25, 0.25, 0.25)
+            size: 10.5,
+            font: fontOblique,
+            color: COLOR_BLACK
           });
-          tableY -= 9;
+          tableY -= 12;
         }
       }
     }

@@ -28,7 +28,7 @@ export function recalculateBapItem(item: BapItem, dateCols: string[]): BapItem {
     sumReal += val;
   }
   const poQty = Number(item.poQty) || 0;
-  const sisa = Math.max(0, poQty - sumReal);
+  const sisa = poQty - sumReal;
 
   return {
     ...item,
@@ -50,7 +50,8 @@ export function createBapFromSph(sph: SphQuotation, existingLabelNo?: string): B
   const year = now.getFullYear();
   const bastpNumber = `${labelNumber}/SMK/BASTP/${romanMonth}/${year}`;
 
-  const defaultDateColumns = ['Tgl 03', 'Tgl 04', 'Tgl 05'];
+  // Default to 7 flexible date columns matching the reference template
+  const defaultDateColumns = ['Tgl 03', 'Tgl …', 'Tgl …', 'Tgl …', 'Tgl …', 'Tgl …', 'Tgl …'];
 
   // Map SPH items to BAP items
   const items: BapItem[] = (sph.items || []).map((it, idx) => ({
@@ -82,6 +83,17 @@ export function createBapFromSph(sph: SphQuotation, existingLabelNo?: string): B
     bastpNumber: bastpNumber,
     dateColumns: defaultDateColumns,
     items,
+    // Sheet Rekap Non PO starts completely blank by default
+    nonPoHeader: {
+      customerName: '',
+      sphNumber: '',
+      poDate: '',
+      address: '',
+      cityDistrict: '',
+      labelNumber: '',
+      bastpNumber: ''
+    },
+    nonPoDateColumns: [...defaultDateColumns],
     nonPoItems: [],
     status: 'Dalam Pekerjaan',
     createdAt: new Date().toISOString(),

@@ -1,5 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { 
+  User, 
+  onAuthStateChanged, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut 
+} from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from './config';
 
@@ -159,7 +165,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             try {
               await createUserWithEmailAndPassword(auth, firebaseEmail, firebasePass);
             } catch {
-              // Ignore background Firebase errors (e.g. unwhitelisted domain)
+              // Ignore background Firebase errors
             }
           }
         });

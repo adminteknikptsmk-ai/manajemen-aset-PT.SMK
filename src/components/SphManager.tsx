@@ -27,13 +27,16 @@ import {
   ChevronUp,
   Send,
   ThumbsUp,
-  XCircle
+  XCircle,
+  FileSpreadsheet
 } from 'lucide-react';
-import { SphQuotation, Hospital } from '../types';
+import { SphQuotation, Hospital, BapDocument } from '../types';
 import { SPH_TARIFF_CATALOG } from '../data/sphTariffCatalog';
 import { formatRupiah, formatNumber } from '../utils/sphHelpers';
 import { exportSphToWord } from '../utils/sphWordExport';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
+import { exportBapToExcel } from '../utils/bapExcelExport';
+import { createBapFromSph } from '../utils/bapHelpers';
 
 interface SphManagerProps {
   sphList: SphQuotation[];
@@ -45,6 +48,8 @@ interface SphManagerProps {
   onUpdateStatus?: (sphId: string, newStatus: SphQuotation['status']) => void;
   onNavigateToSchedules?: () => void;
   hospitals: Hospital[];
+  bapDocuments?: BapDocument[];
+  onOpenBap?: (sph: SphQuotation) => void;
 }
 
 export const SphManager: React.FC<SphManagerProps> = ({
@@ -56,7 +61,9 @@ export const SphManager: React.FC<SphManagerProps> = ({
   onConvertToSpk,
   onUpdateStatus,
   onNavigateToSchedules,
-  hospitals
+  hospitals,
+  bapDocuments = [],
+  onOpenBap
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -64,6 +71,13 @@ export const SphManager: React.FC<SphManagerProps> = ({
   const [catalogSearch, setCatalogSearch] = useState('');
   const [deleteTargetSph, setDeleteTargetSph] = useState<SphQuotation | null>(null);
   const [showStatusGuide, setShowStatusGuide] = useState(true);
+
+  // Quick BAP Excel exporter
+  const handleDownloadBap = (sph: SphQuotation) => {
+    const existingBap = bapDocuments?.find(b => b.sphId === sph.id || b.sphNumber === sph.sphNumber);
+    const bapToExport = existingBap || createBapFromSph(sph);
+    exportBapToExcel(bapToExport);
+  };
 
   // Stats calculation
   const totalSphCount = sphList.length;
@@ -400,10 +414,21 @@ export const SphManager: React.FC<SphManagerProps> = ({
                         </div>
 
                         {sph.status === 'Disetujui (Deal)' && (
-                          <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-0.5 rounded-full font-semibold flex items-center gap-1 shadow-sm">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            <span>Terjadwal di Kalibrasi RS</span>
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-0.5 rounded-full font-semibold flex items-center gap-1 shadow-xs">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>Terjadwal di RS</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => onOpenBap?.(sph)}
+                              className="text-[10px] bg-[#1C658C]/10 hover:bg-[#1C658C] text-[#1C658C] hover:text-white border border-[#1C658C]/30 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 transition-all shadow-2xs cursor-pointer"
+                              title="Buka Dokumen BAP (Rekap, BAP, Rekap Non PO, BAP Non PO)"
+                            >
+                              <FileSpreadsheet className="w-3 h-3" />
+                              <span>BAP 4 Sheet Siap</span>
+                            </button>
+                          </div>
                         )}
 
                         {sph.discountAmount && sph.discountAmount > 0 && (
@@ -504,6 +529,26 @@ export const SphManager: React.FC<SphManagerProps> = ({
                     {sph.status === 'Disetujui (Deal)' ? (
                       <>
                         <button
+                          type="button"
+                          onClick={() => onOpenBap?.(sph)}
+                          className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                          title="Buka dokumen BAP (Rekap, BAP, Rekap Non PO, BAP Non PO) untuk SPH ini"
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5" />
+                          <span>Buka BAP (4 Sheet)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadBap(sph)}
+                          className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold rounded-lg transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
+                          title="Unduh 1 file Excel (.xlsx) dengan 4 sheet: Rekap, BAP, Rekap Non PO, BAP Non PO"
+                        >
+                          <Download className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>Excel BAP</span>
+                        </button>
+
+                        <button
                           onClick={() => {
                             if (onNavigateToSchedules) {
                               onNavigateToSchedules();
@@ -511,30 +556,30 @@ export const SphManager: React.FC<SphManagerProps> = ({
                               onConvertToSpk(sph);
                             }
                           }}
-                          className="px-3.5 py-1.5 bg-[#1C658C] hover:bg-[#144966] text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shadow-sm"
+                          className="px-3 py-1.5 bg-[#1C658C] hover:bg-[#144966] text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shadow-xs"
                           title="Buka agenda kalibrasi RS untuk SPH ini"
                         >
                           <Calendar className="w-3.5 h-3.5" />
-                          <span>Lihat Jadwal Kalibrasi RS</span>
+                          <span>Jadwal RS</span>
                         </button>
 
                         <button
                           onClick={() => onConvertToSpk(sph)}
-                          className="px-3.5 py-1.5 bg-[#398AB9] hover:bg-[#2b769f] text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shadow-sm"
+                          className="px-3 py-1.5 bg-[#398AB9] hover:bg-[#2b769f] text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shadow-xs"
                           title="Konversi penawaran deal ini menjadi Surat Perintah Kerja (SPK) & Jadwal Kalibrasi"
                         >
                           <ArrowRight className="w-3.5 h-3.5" />
-                          <span>Terbitkan SPK</span>
+                          <span>SPK</span>
                         </button>
                       </>
                     ) : (
                       <button
                         onClick={() => onUpdateStatus?.(sph.id, 'Disetujui (Deal)')}
-                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shadow-sm"
-                        title="Tandai SPH ini Deal dan masukkan langsung ke Penjadwalan Kalibrasi RS"
+                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                        title="Tandai SPH ini Deal dan otomatis buat dokumen BAP 4 sheet serta jadwalkan kalibrasi"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                        <span>Tandai Deal & Masuk Jadwal RS</span>
+                        <span>Tandai Deal (Buat BAP)</span>
                       </button>
                     )}
                   </div>

@@ -16,13 +16,54 @@ import {
   TrendingDown, 
   ArrowRight,
   HelpCircle,
-  Receipt
+  Receipt,
+  Download,
+  User,
+  Calendar,
+  Layers,
+  Phone,
+  FileCheck
 } from 'lucide-react';
+import { saveAs } from 'file-saver';
 import { SphItem, SphQuotation, Hospital } from '../types';
 import { SPH_TARIFF_CATALOG, TariffItem } from '../data/sphTariffCatalog';
-import { calculateNegotiation, generateSphNumber, formatRupiah, formatNumber } from '../utils/sphHelpers';
+import { 
+  calculateNegotiation, 
+  generateSphNumber, 
+  formatRupiah, 
+  formatNumber, 
+  formatIndonesianLongDate, 
+  OFFICIAL_MARKETING_STAFF, 
+  angkaTerbilang 
+} from '../utils/sphHelpers';
+import { createAuthenticSphPdf } from '../lib/templateGenerator';
+import { getFullTemplatesConfig } from '../lib/templateService';
+import { getLocalBlob } from '../lib/localBlobStorage';
 
 import { PdfUploader } from './PdfUploader';
+
+const OFFICIAL_SAMPLE_ITEMS: SphItem[] = [
+  { id: 'sample-1', description: 'Anaesthesia Unit (Mesin Anesthesi)', quantity: 1, unit: 'Unit', standardPrice: 362400, unitPrice: 362400, totalPrice: 362400 },
+  { id: 'sample-2', description: 'Baby Incubator', quantity: 4, unit: 'Unit', standardPrice: 362400, unitPrice: 362400, totalPrice: 1449600 },
+  { id: 'sample-3', description: 'Infant Warmer', quantity: 1, unit: 'Unit', standardPrice: 362400, unitPrice: 362400, totalPrice: 362400 },
+  { id: 'sample-4', description: 'Autoclave', quantity: 2, unit: 'Unit', standardPrice: 362400, unitPrice: 362400, totalPrice: 724800 },
+  { id: 'sample-5', description: 'Centrifuge', quantity: 4, unit: 'Unit', standardPrice: 200000, unitPrice: 200000, totalPrice: 800000 },
+  { id: 'sample-6', description: 'Electrocardiograph (ECG)', quantity: 5, unit: 'Unit', standardPrice: 195000, unitPrice: 195000, totalPrice: 975000 },
+  { id: 'sample-7', description: 'Electrosurgical Unit (ESU)', quantity: 2, unit: 'Unit', standardPrice: 362400, unitPrice: 362400, totalPrice: 724800 },
+  { id: 'sample-8', description: 'Fetal Doppler', quantity: 3, unit: 'Unit', standardPrice: 175000, unitPrice: 175000, totalPrice: 525000 },
+  { id: 'sample-9', description: 'Infusion Pump', quantity: 12, unit: 'Unit', standardPrice: 175000, unitPrice: 175000, totalPrice: 2100000 },
+  { id: 'sample-10', description: 'Syringe Pump', quantity: 10, unit: 'Unit', standardPrice: 175000, unitPrice: 175000, totalPrice: 1750000 },
+  { id: 'sample-11', description: 'Lampu Operasi', quantity: 2, unit: 'Unit', standardPrice: 150000, unitPrice: 150000, totalPrice: 300000 },
+  { id: 'sample-12', description: 'Meja Operasi', quantity: 2, unit: 'Unit', standardPrice: 150000, unitPrice: 150000, totalPrice: 300000 },
+  { id: 'sample-13', description: 'Patient Monitor', quantity: 8, unit: 'Unit', standardPrice: 250000, unitPrice: 250000, totalPrice: 2000000 },
+  { id: 'sample-14', description: 'Pulse Oximeter', quantity: 6, unit: 'Unit', standardPrice: 150000, unitPrice: 150000, totalPrice: 900000 },
+  { id: 'sample-15', description: 'Suction Pump', quantity: 8, unit: 'Unit', standardPrice: 150000, unitPrice: 150000, totalPrice: 1200000 },
+  { id: 'sample-16', description: 'Tensimeter Digital / Aneroid', quantity: 15, unit: 'Unit', standardPrice: 100000, unitPrice: 100000, totalPrice: 1500000 },
+  { id: 'sample-17', description: 'Termometer Digital / Inframerah', quantity: 10, unit: 'Unit', standardPrice: 80000, unitPrice: 80000, totalPrice: 800000 },
+  { id: 'sample-18', description: 'Timbangan Bayi / Dewasa', quantity: 6, unit: 'Unit', standardPrice: 120000, unitPrice: 120000, totalPrice: 720000 },
+  { id: 'sample-19', description: 'USG (Ultrasonografi)', quantity: 2, unit: 'Unit', standardPrice: 350000, unitPrice: 350000, totalPrice: 700000 },
+  { id: 'sample-20', description: 'Ventilator', quantity: 2, unit: 'Unit', standardPrice: 400000, unitPrice: 400000, totalPrice: 800000 }
+];
 
 interface SphFormModalProps {
   isOpen: boolean;
@@ -41,17 +82,20 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
   initialSph,
   existingSphCount = 45
 }) => {
-  // Form Header State
+  // Form Header & Letter Info State
   const [sphNumber, setSphNumber] = useState('');
   const [subject, setSubject] = useState('Surat Penawaran Harga Kalibrasi');
-  const [attachmentPages, setAttachmentPages] = useState('2 lembar');
+  const [attachmentPages, setAttachmentPages] = useState('1 Lembar');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [city, setCity] = useState('Surakarta');
+  const [tembusan, setTembusan] = useState('-');
+  const [notes, setNotes] = useState('-');
 
-  // Hospital Details State
+  // Customer Details State
   const [hospitalId, setHospitalId] = useState('');
   const [hospitalName, setHospitalName] = useState('');
   const [hospitalAddress, setHospitalAddress] = useState('');
+  const [customerUp, setCustomerUp] = useState('Direktur');
 
   // Items State
   const [items, setItems] = useState<SphItem[]>([]);
@@ -65,10 +109,13 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
   const [pdfUrl, setPdfUrl] = useState<string | undefined>(undefined);
 
   // Company and Signer Config
-  const [marketingStaffName, setMarketingStaffName] = useState('Erwin');
-  const [marketingStaffPhone, setMarketingStaffPhone] = useState('0852-0006-0589');
+  const [marketingStaffName, setMarketingStaffName] = useState('Ari');
+  const [marketingStaffPhone, setMarketingStaffPhone] = useState('0812-4484-2383');
   const [directorName, setDirectorName] = useState('Ahmad Fajar Ariyanto');
   const [directorTitle, setDirectorTitle] = useState('Direktur');
+
+  // PDF Generation State
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   // Quick Catalog Picker State
   const [catalogSearch, setCatalogSearch] = useState('');
@@ -79,13 +126,16 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
   useEffect(() => {
     if (initialSph) {
       setSphNumber(initialSph.sphNumber);
-      setSubject(initialSph.subject);
-      setAttachmentPages(initialSph.attachmentPages);
+      setSubject(initialSph.subject || 'Surat Penawaran Harga Kalibrasi');
+      setAttachmentPages(initialSph.attachmentPages || '1 Lembar');
       setDate(initialSph.date);
-      setCity(initialSph.city);
+      setCity(initialSph.city || 'Surakarta');
+      setTembusan(initialSph.tembusan || '-');
+      setNotes(initialSph.notes || '-');
       setHospitalId(initialSph.hospitalId || '');
       setHospitalName(initialSph.hospitalName);
       setHospitalAddress(initialSph.hospitalAddress);
+      setCustomerUp(initialSph.recipientRole || 'Direktur');
       setItems(initialSph.items);
       setAccommodationFee(initialSph.accommodationFee || 0);
       setIsPpnIncluded(initialSph.isPpnIncluded !== false);
@@ -93,45 +143,36 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
       setNegotiationType(initialSph.negotiationType || 'INCLUDE_PPN');
       setStatus(initialSph.status);
       setPdfUrl(initialSph.pdfUrl);
-      setMarketingStaffName(initialSph.marketingStaffName || 'Erwin');
-      setMarketingStaffPhone(initialSph.marketingStaffPhone || '0852-0006-0589');
+      setMarketingStaffName(initialSph.marketingStaffName || 'Ari');
+      setMarketingStaffPhone(initialSph.marketingStaffPhone || '0812-4484-2383');
       setDirectorName(initialSph.directorName || 'Ahmad Fajar Ariyanto');
       setDirectorTitle(initialSph.directorTitle || 'Direktur');
     } else {
       // New SPH defaults
       setSphNumber(generateSphNumber(existingSphCount));
       setSubject('Surat Penawaran Harga Kalibrasi');
-      setAttachmentPages('2 lembar');
+      setAttachmentPages('1 Lembar');
       setDate(new Date().toISOString().split('T')[0]);
       setCity('Surakarta');
+      setTembusan('-');
+      setNotes('-');
       setHospitalId('');
       setHospitalName('');
       setHospitalAddress('');
+      setCustomerUp('Direktur');
       setAccommodationFee(0);
       setIsPpnIncluded(true);
       setNegotiationTarget('');
       setNegotiationType('INCLUDE_PPN');
       setStatus('Draft');
       setPdfUrl(undefined);
-      setMarketingStaffName('Erwin');
-      setMarketingStaffPhone('0852-0006-0589');
+      setMarketingStaffName('Ari');
+      setMarketingStaffPhone('0812-4484-2383');
       setDirectorName('Ahmad Fajar Ariyanto');
       setDirectorTitle('Direktur');
 
-      // Add 1 default sample item
-      setItems([
-        {
-          id: `item-${Date.now()}-1`,
-          catalogNumber: 97,
-          description: 'Thermohygrometer Analog',
-          quantity: 10,
-          unit: 'Pcs',
-          standardPrice: 250000,
-          unitPrice: 250000,
-          totalPrice: 2500000,
-          notes: ''
-        }
-      ]);
+      // Add default sample items (20 items matching official SPH)
+      setItems(OFFICIAL_SAMPLE_ITEMS);
     }
   }, [initialSph, isOpen, existingSphCount]);
 
@@ -145,11 +186,20 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
     }
   };
 
+  // Select predefined marketing staff
+  const handleMarketingSelect = (name: string) => {
+    const found = OFFICIAL_MARKETING_STAFF.find(m => m.name.toLowerCase() === name.toLowerCase());
+    setMarketingStaffName(name);
+    if (found) {
+      setMarketingStaffPhone(found.phone);
+    }
+  };
+
   // Add Item
   const handleAddItem = (tariff?: TariffItem) => {
     const newItem: SphItem = {
       id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      catalogNumber: tariff ? tariff.id : undefined,
+      ...(tariff?.id ? { catalogNumber: tariff.id } : {}),
       description: tariff ? tariff.name : '',
       quantity: 1,
       unit: tariff ? tariff.unit : 'Unit',
@@ -159,6 +209,11 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
       notes: tariff?.notes || ''
     };
     setItems(prev => [...prev, newItem]);
+  };
+
+  // Load Official 20 items sample
+  const handleLoadOfficialSample = () => {
+    setItems(OFFICIAL_SAMPLE_ITEMS);
   };
 
   // Remove Item
@@ -186,7 +241,6 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
     const targetMode = type || negotiationType;
 
     if (!numTarget || numTarget <= 0) {
-      // Reset back to brochure standard price
       resetToBrochurePrices();
       return;
     }
@@ -206,20 +260,21 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
   const resetToBrochurePrices = () => {
     setItems(prev => prev.map(it => ({
       ...it,
-      unitPrice: it.standardPrice,
-      totalPrice: it.quantity * it.standardPrice
+      unitPrice: it.standardPrice || it.unitPrice,
+      totalPrice: it.quantity * (it.standardPrice || it.unitPrice)
     })));
     setNegotiationTarget('');
   };
 
   // Calculate live totals
-  const subtotalOriginal = items.reduce((acc, it) => acc + (it.quantity * it.standardPrice), 0);
+  const subtotalOriginal = items.reduce((acc, it) => acc + (it.quantity * (it.standardPrice || it.unitPrice)), 0);
   const subtotal1 = items.reduce((acc, it) => acc + it.totalPrice, 0);
   const subtotal2 = subtotal1 + (Number(accommodationFee) || 0);
   const ppnAmount = isPpnIncluded ? Math.round(subtotal2 * 0.11) : 0;
   const grandTotal = subtotal2 + ppnAmount;
   const discountAmount = Math.max(0, subtotalOriginal - subtotal1);
   const discountPercent = subtotalOriginal > 0 ? (discountAmount / subtotalOriginal) * 100 : 0;
+  const formattedDateStr = formatIndonesianLongDate(date, city);
 
   // Filter Catalog
   const categories = ['Semua', ...Array.from(new Set(SPH_TARIFF_CATALOG.map(t => t.category)))];
@@ -230,11 +285,86 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
     return matchesSearch && matchesCat;
   });
 
+  // Direct PDF Download Handler
+  const handleDownloadPdf = async () => {
+    if (!hospitalName.trim()) {
+      alert('Mohon isi Nama Customer / Rumah Sakit terlebih dahulu!');
+      return;
+    }
+
+    if (items.length === 0) {
+      alert('Mohon tambahkan minimal 1 item alat!');
+      return;
+    }
+
+    setIsGeneratingPdf(true);
+    try {
+      const config = await getFullTemplatesConfig();
+      let resolvedLh: string | null = null;
+      if (config.kop_surat?.activeUrl) {
+        resolvedLh = config.kop_surat.activeUrl.startsWith('idb://')
+          ? await getLocalBlob(config.kop_surat.activeUrl)
+          : config.kop_surat.activeUrl;
+      }
+
+      const calculatedTerbilang = angkaTerbilang(grandTotal);
+
+      const sphData = {
+        sphNumber: sphNumber || generateSphNumber(existingSphCount),
+        subject,
+        attachmentPages,
+        date,
+        city,
+        formattedDate: formattedDateStr,
+        hospitalName,
+        hospitalAddress,
+        recipientRole: customerUp || 'Direktur',
+        tembusan,
+        notes,
+        items: items.map((it, idx) => ({
+          no: idx + 1,
+          description: it.description,
+          quantity: it.quantity,
+          unit: it.unit || 'Unit',
+          unitPrice: it.unitPrice,
+          totalPrice: it.totalPrice
+        })),
+        subtotalOriginal,
+        subtotal1,
+        accommodationFee: Number(accommodationFee) || 0,
+        subtotal2,
+        ppnPercent: isPpnIncluded ? 11 : 0,
+        isPpnIncluded,
+        ppnAmount,
+        grandTotal,
+        terbilang: calculatedTerbilang,
+        marketingStaffName,
+        marketingStaffPhone,
+        directorName,
+        directorTitle,
+        bankName: 'Bank Mandiri Cab. Surakarta',
+        bankAccountNumber: '138-00-2610846-9',
+        bankAccountName: 'SARANA MULTI KALIBRASI PT'
+      };
+
+      const pdfBytes = await createAuthenticSphPdf(sphData, undefined, resolvedLh);
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const cleanNumber = (sphNumber || 'SPH').replace(/[^a-zA-Z0-9-]/g, '_');
+      const cleanCust = (hospitalName || 'Customer').replace(/[^a-zA-Z0-9]/g, '_');
+      saveAs(blob, `SPH_${cleanNumber}_${cleanCust}.pdf`);
+    } catch (err: any) {
+      console.error('Error generating direct SPH PDF:', err);
+      alert('Gagal menghasilkan PDF: ' + (err?.message || 'Error tidak diketahui'));
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!hospitalName.trim()) {
-      alert('Mohon isi nama Rumah Sakit tujuan penawaran!');
+      alert('Mohon isi nama Customer / Rumah Sakit tujuan penawaran!');
       return;
     }
 
@@ -258,9 +388,13 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
       attachmentPages,
       date,
       city,
+      formattedDate: formattedDateStr,
       hospitalId,
       hospitalName,
       hospitalAddress,
+      recipientRole: customerUp || 'Direktur',
+      tembusan,
+      notes,
       items: calculated.items,
       subtotalOriginal,
       subtotal1,
@@ -290,13 +424,13 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
         'Pembayaran : Bank Mandiri Cab. Surakarta No. Rek : 138-00-2610846-9 (SARANA MULTI KALIBRASI PT)'
       ],
       status,
-      negotiationTarget: negotiationTarget ? Number(negotiationTarget) : undefined,
-      negotiationType,
       discountAmount,
       discountPercent,
-      pdfUrl,
       createdAt: initialSph?.createdAt || date,
-      validUntilDate: new Date(new Date(date).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      validUntilDate: new Date(new Date(date).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      ...(negotiationTarget ? { negotiationTarget: Number(negotiationTarget) } : {}),
+      ...(negotiationType ? { negotiationType } : {}),
+      ...(pdfUrl ? { pdfUrl } : {})
     };
 
     onSave(newSph);
@@ -317,33 +451,232 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <span>{initialSph ? 'Edit Surat Penawaran Harga (SPH)' : 'Buat Surat Penawaran Harga (SPH) Baru'}</span>
+                <span>{initialSph ? 'Edit Surat Penawaran Harga (SPH)' : 'Pembuatan SPH Otomatis & Download PDF'}</span>
                 <span className="text-xs bg-white/20 text-white border border-white/30 px-2 py-0.5 rounded font-mono font-bold">
                   {sphNumber}
                 </span>
               </h2>
               <p className="text-xs text-[#D8D2CB]">
-                Lengkapi rincian alat kalibrasi dan gunakan Kalkulator Negosiasi Cerdas untuk menyesuaikan harga deal RS
+                Isi form lengkap, kalkulasi negosiasi otomatis, dan langsung download PDF resmi 2 halaman dengan Kop Surat
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={isGeneratingPdf}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
+            >
+              <Download className="w-4 h-4" />
+              <span>{isGeneratingPdf ? 'Memproses PDF...' : 'Download PDF'}</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable Form Body */}
         <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-6 flex-1 text-slate-800 bg-[#EEEEEE]/30">
           
-          {/* BAGIAN 1: METADATA SURAT & INFORMASI RUMAH SAKIT */}
+          {/* BAGIAN 1: INFO CUSTOMER & INFO SURAT */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            
+            {/* Box 1: Info Customer */}
+            <div className="bg-white border border-[#D8D2CB] rounded-xl p-5 space-y-3.5 shadow-xs">
+              <div className="flex items-center justify-between border-b border-[#D8D2CB]/60 pb-2.5">
+                <h3 className="text-xs font-bold text-[#1C658C] flex items-center gap-2 uppercase tracking-wide">
+                  <User className="w-4 h-4 text-[#398AB9]" />
+                  <span>Info Customer</span>
+                </h3>
+                {hospitals.length > 0 && (
+                  <div className="relative">
+                    <select
+                      value={hospitalId}
+                      onChange={(e) => handleHospitalChange(e.target.value)}
+                      className="text-[11px] bg-[#EEEEEE] border border-[#D8D2CB] rounded px-2 py-0.5 text-slate-700 outline-none"
+                    >
+                      <option value="">-- Pilih dari Database RS --</option>
+                      {hospitals.map(h => (
+                        <option key={h.id} value={h.id}>{h.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Nama Customer / Rumah Sakit <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={hospitalName}
+                  onChange={(e) => setHospitalName(e.target.value)}
+                  className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded-lg px-3 py-2 text-xs text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none font-semibold"
+                  placeholder="Contoh: RS Umum Islam YAKSSI Gemolong"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Alamat Customer <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={hospitalAddress}
+                  onChange={(e) => setHospitalAddress(e.target.value)}
+                  className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded-lg px-3 py-2 text-xs text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none"
+                  placeholder="Jl. Raya Solo - Purwodadi KM. 20 Gemolong, Sragen..."
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  UP (Untuk Perhatian / Nama Penerima)
+                </label>
+                <input
+                  type="text"
+                  value={customerUp}
+                  onChange={(e) => setCustomerUp(e.target.value)}
+                  className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded-lg px-3 py-2 text-xs text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none"
+                  placeholder="Contoh: Direktur / Bagian Pengadaan"
+                />
+              </div>
+            </div>
+
+            {/* Box 2: Info Surat */}
+            <div className="bg-white border border-[#D8D2CB] rounded-xl p-5 space-y-3.5 shadow-xs">
+              <div className="flex items-center justify-between border-b border-[#D8D2CB]/60 pb-2.5">
+                <h3 className="text-xs font-bold text-[#1C658C] flex items-center gap-2 uppercase tracking-wide">
+                  <FileText className="w-4 h-4 text-[#398AB9]" />
+                  <span>Info Surat</span>
+                </h3>
+                <span className="text-[10px] text-slate-500 font-mono">
+                  Standar Format Resmi SMK
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Nomor SPH Resmi <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={sphNumber}
+                    onChange={(e) => setSphNumber(e.target.value)}
+                    className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded-lg px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none"
+                    placeholder="146/SMK-SPH/IX-2026"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Lampiran
+                  </label>
+                  <input
+                    type="text"
+                    value={attachmentPages}
+                    onChange={(e) => setAttachmentPages(e.target.value)}
+                    className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded-lg px-3 py-2 text-xs text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none"
+                    placeholder="1 Lembar"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Perihal
+                  </label>
+                  <input
+                    type="text"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded-lg px-3 py-2 text-xs text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none"
+                    placeholder="Surat Penawaran Harga Kalibrasi"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Tembusan
+                  </label>
+                  <input
+                    type="text"
+                    value={tembusan}
+                    onChange={(e) => setTembusan(e.target.value)}
+                    className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded-lg px-3 py-2 text-xs text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none"
+                    placeholder="Direktur / Kabid Penunjang / -"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Tanggal Surat
+                  </label>
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded-lg px-3 py-2 text-xs text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Kota Diterbitkan
+                  </label>
+                  <input
+                    type="text"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded-lg px-3 py-2 text-xs text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none"
+                    placeholder="Surakarta"
+                  />
+                </div>
+              </div>
+
+              {/* Tanggal PDF Preview & Catatan */}
+              <div className="p-2.5 bg-[#EEEEEE]/60 border border-[#D8D2CB] rounded-lg text-xs flex items-center justify-between">
+                <span className="text-slate-500">Format Tanggal PDF:</span>
+                <span className="font-semibold text-[#1C658C]">{formattedDateStr}</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Catatan (Opsional)
+                </label>
+                <input
+                  type="text"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded-lg px-3 py-2 text-xs text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none"
+                  placeholder="Boleh kosong atau strip (-)"
+                />
+              </div>
+
+            </div>
+
+          </div>
+
+          {/* BAGIAN 2: INFO INTERNAL & STATUS */}
           <div className="bg-white border border-[#D8D2CB] rounded-xl p-5 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between border-b border-[#D8D2CB]/60 pb-3">
-              <h3 className="text-sm font-bold text-[#1C658C] flex items-center gap-2">
-                <Building2 className="w-4 h-4" />
-                <span>1. Data Surat & Rumah Sakit Tujuan</span>
+            <div className="flex items-center justify-between border-b border-[#D8D2CB]/60 pb-2.5">
+              <h3 className="text-xs font-bold text-[#1C658C] flex items-center gap-2 uppercase tracking-wide">
+                <Building2 className="w-4 h-4 text-[#398AB9]" />
+                <span>Info Internal & Penanda Tangan</span>
               </h3>
               <div className="flex items-center gap-2">
                 <label className="text-xs text-slate-500 font-medium">Status SPH:</label>
@@ -362,76 +695,68 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-              {/* Nomor SPH */}
-              <div className="sm:col-span-4">
-                <label className="block text-xs font-medium text-slate-700 mb-1">Nomor SPH Resmi</label>
+              {/* Marketing Preset Selector */}
+              <div className="sm:col-span-3">
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Pilih Staf Marketing
+                </label>
+                <select
+                  value={marketingStaffName}
+                  onChange={(e) => handleMarketingSelect(e.target.value)}
+                  className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded-lg px-3 py-2 text-xs text-slate-900 font-medium focus:ring-1 focus:ring-[#1C658C] outline-none cursor-pointer"
+                >
+                  {OFFICIAL_MARKETING_STAFF.map(m => (
+                    <option key={m.name} value={m.name}>{m.name} ({m.phone})</option>
+                  ))}
+                  <option value="Custom">Kustom / Lainnya</option>
+                </select>
+              </div>
+
+              {/* Marketing Phone */}
+              <div className="sm:col-span-3">
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  No. HP Marketing
+                </label>
                 <input
                   type="text"
-                  value={sphNumber}
-                  onChange={(e) => setSphNumber(e.target.value)}
+                  value={marketingStaffPhone}
+                  onChange={(e) => setMarketingStaffPhone(e.target.value)}
                   className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded-lg px-3 py-2 text-xs font-mono text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none"
-                  placeholder="045/SMK-SPH/VII-2026"
-                  required
+                  placeholder="0812-4484-2383"
                 />
               </div>
 
-              {/* Tanggal Surat */}
-              <div className="sm:col-span-4">
-                <label className="block text-xs font-medium text-slate-700 mb-1">Tanggal Surat</label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded-lg px-3 py-2 text-xs text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none"
-                  required
-                />
-              </div>
-
-              {/* Kota Terbit */}
-              <div className="sm:col-span-4">
-                <label className="block text-xs font-medium text-slate-700 mb-1">Kota Diterbitkan</label>
-                <input
-                  type="text"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded-lg px-3 py-2 text-xs text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none"
-                  placeholder="Surakarta"
-                />
-              </div>
-
-              {/* Nama Rumah Sakit */}
-              <div className="sm:col-span-12">
+              {/* Signer TTD */}
+              <div className="sm:col-span-3">
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Nama Rumah Sakit / Faskes <span className="text-rose-500">*</span>
+                  Nama Penanda Tangan (TTD)
                 </label>
                 <input
                   type="text"
-                  value={hospitalName}
-                  onChange={(e) => setHospitalName(e.target.value)}
-                  className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded-lg px-3 py-2 text-xs text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none font-semibold"
-                  placeholder="Contoh: RS Unim Islam YAKSSI Gemolong"
-                  required
+                  value={directorName}
+                  onChange={(e) => setDirectorName(e.target.value)}
+                  className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded-lg px-3 py-2 text-xs font-semibold text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none"
+                  placeholder="Ahmad Fajar Ariyanto"
                 />
               </div>
 
-              {/* Alamat Rumah Sakit */}
-              <div className="sm:col-span-12">
+              {/* Signer Title */}
+              <div className="sm:col-span-3">
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Alamat Lengkap Rumah Sakit <span className="text-rose-500">*</span>
+                  Jabatan
                 </label>
-                <textarea
-                  rows={2}
-                  value={hospitalAddress}
-                  onChange={(e) => setHospitalAddress(e.target.value)}
+                <input
+                  type="text"
+                  value={directorTitle}
+                  onChange={(e) => setDirectorTitle(e.target.value)}
                   className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded-lg px-3 py-2 text-xs text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none"
-                  placeholder="Jl. Raya Solo - Purwodadi KM. 20 Gemolong, Kabayanan II, Kragilan, Kec. Gemolong, Kabupaten Sragen..."
-                  required
+                  placeholder="Direktur"
                 />
               </div>
             </div>
           </div>
 
-          {/* BAGIAN 2: KALKULATOR NEGOSIASI CERDAS (SMART NEGOTIATION ENGINE) */}
+          {/* BAGIAN 3: KALKULATOR NEGOSIASI CERDAS (SMART NEGOTIATION ENGINE) */}
           <div className="bg-white border-2 border-[#1C658C] rounded-xl p-5 space-y-4 shadow-md">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#D8D2CB] pb-3">
               <div className="flex items-center gap-2.5">
@@ -440,13 +765,13 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-[#1C658C] flex items-center gap-2">
-                    <span>2. Kalkulator Negosiasi & Target Deal Rumah Sakit</span>
+                    <span>Kalkulator Negosiasi & Target Deal Rumah Sakit</span>
                     <span className="bg-[#398AB9]/20 text-[#1C658C] text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold border border-[#398AB9]/30">
                       Otomatis Distribusi Proporsional
                     </span>
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Masukkan nominal deal yang diminta pihak RS — seluruh harga satuan alat otomatis dihitung ulang & disesuaikan presisi
+                    Masukkan nominal deal yang disepakati pihak RS — seluruh harga satuan alat otomatis dihitung ulang & disesuaikan presisi
                   </p>
                 </div>
               </div>
@@ -455,11 +780,11 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
                 <button
                   type="button"
                   onClick={resetToBrochurePrices}
-                  className="px-3 py-1.5 bg-[#EEEEEE] hover:bg-[#D8D2CB]/60 text-slate-700 text-xs font-medium rounded-lg border border-[#D8D2CB] flex items-center gap-1.5 transition-all"
+                  className="px-3 py-1.5 bg-[#EEEEEE] hover:bg-[#D8D2CB]/60 text-slate-700 text-xs font-medium rounded-lg border border-[#D8D2CB] flex items-center gap-1.5 transition-all cursor-pointer"
                   title="Kembalikan semua harga ke tarif resmi katalog brosur"
                 >
                   <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Reset Harga Brosur</span>
+                  <span>Reset Harga Normal</span>
                 </button>
               </div>
             </div>
@@ -471,7 +796,7 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
               <div className="md:col-span-5">
                 <label className="block text-xs font-semibold text-[#1C658C] mb-1.5 flex items-center justify-between">
                   <span>Nominal Deal yang Diminta Pihak RS (Rp)</span>
-                  <span className="text-[11px] text-slate-500 font-normal">Contoh: 100000000 atau 15000000</span>
+                  <span className="text-[11px] text-slate-500 font-normal">Contoh: 15000000 atau 20000000</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#1C658C] font-bold text-xs">
@@ -487,8 +812,8 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
                         applyNegotiation(negotiationTarget);
                       }
                     }}
-                    placeholder="Contoh: 100000000"
-                    className="w-full bg-[#EEEEEE]/50 border-2 border-[#1C658C] rounded-xl pl-9 pr-4 py-2.5 text-sm font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#1C658C] outline-none"
+                    placeholder="Contoh: 15000000"
+                    className="w-full bg-[#EEEEEE]/50 border-2 border-[#1C658C] rounded-xl pl-9 pr-4 py-2 text-sm font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#1C658C] outline-none"
                   />
                 </div>
               </div>
@@ -505,7 +830,7 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
                       setNegotiationType('INCLUDE_PPN');
                       if (negotiationTarget) applyNegotiation(negotiationTarget, 'INCLUDE_PPN');
                     }}
-                    className={`px-2.5 py-2 rounded-lg text-xs font-medium border text-center transition-all ${
+                    className={`px-2.5 py-2 rounded-lg text-xs font-medium border text-center transition-all cursor-pointer ${
                       negotiationType === 'INCLUDE_PPN'
                         ? 'bg-[#1C658C] text-white border-[#1C658C] shadow-sm font-semibold'
                         : 'bg-[#EEEEEE] text-slate-700 border-[#D8D2CB] hover:bg-[#D8D2CB]/50'
@@ -519,7 +844,7 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
                       setNegotiationType('EXCLUDE_PPN');
                       if (negotiationTarget) applyNegotiation(negotiationTarget, 'EXCLUDE_PPN');
                     }}
-                    className={`px-2.5 py-2 rounded-lg text-xs font-medium border text-center transition-all ${
+                    className={`px-2.5 py-2 rounded-lg text-xs font-medium border text-center transition-all cursor-pointer ${
                       negotiationType === 'EXCLUDE_PPN'
                         ? 'bg-[#1C658C] text-white border-[#1C658C] shadow-sm font-semibold'
                         : 'bg-[#EEEEEE] text-slate-700 border-[#D8D2CB] hover:bg-[#D8D2CB]/50'
@@ -535,7 +860,7 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
                 <button
                   type="button"
                   onClick={() => applyNegotiation()}
-                  className="w-full py-2.5 px-4 bg-[#398AB9] hover:bg-[#2b769f] active:scale-98 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
+                  className="w-full py-2 px-4 bg-[#398AB9] hover:bg-[#2b769f] active:scale-98 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4 text-amber-200" />
                   <span>Kalkulasi & Nego</span>
@@ -544,69 +869,73 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
 
             </div>
 
-            {/* Quick Simulation Badges (e.g. Diskon & Perbandingan Harga) */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
-              <div className="bg-[#EEEEEE]/60 border border-[#D8D2CB] p-3 rounded-xl">
-                <span className="text-slate-500 block text-[11px]">Nilai Awal Katalog Brosur:</span>
+            {/* Quick Simulation Badges */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-xs">
+              <div className="bg-[#EEEEEE]/60 border border-[#D8D2CB] p-2.5 rounded-xl">
+                <span className="text-slate-500 block text-[11px]">Nilai Awal (Harga Standar):</span>
                 <span className="font-mono font-bold text-slate-800 text-sm">
                   {formatRupiah(subtotalOriginal)}
                 </span>
-                <span className="text-[10px] text-slate-400 block mt-0.5">Total sebelum negosiasi</span>
               </div>
 
-              <div className="bg-[#EEEEEE]/60 border border-[#D8D2CB] p-3 rounded-xl">
-                <span className="text-slate-500 block text-[11px]">Potongan / Diskon Deal:</span>
+              <div className="bg-[#EEEEEE]/60 border border-[#D8D2CB] p-2.5 rounded-xl">
+                <span className="text-slate-500 block text-[11px]">Diskon Deal Negosiasi:</span>
                 <span className="font-mono font-bold text-amber-700 text-sm">
                   {discountAmount > 0 ? `- ${formatRupiah(discountAmount)} (${discountPercent.toFixed(1)}%)` : '0% (Harga Normal)'}
                 </span>
-                <span className="text-[10px] text-slate-400 block mt-0.5">Penyesuaian per unit</span>
               </div>
 
-              <div className="bg-[#1C658C] text-white border border-[#144966] p-3 rounded-xl shadow-xs">
+              <div className="bg-[#1C658C] text-white border border-[#144966] p-2.5 rounded-xl shadow-xs">
                 <span className="text-[#D8D2CB] block text-[11px] font-semibold">Total Deal Akhir (Grand Total):</span>
                 <span className="font-mono font-black text-white text-base">
                   {formatRupiah(grandTotal)}
-                </span>
-                <span className="text-[10px] text-[#EEEEEE] block mt-0.5">
-                  {isPpnIncluded ? 'Sudah Termasuk PPN 11%' : 'Tanpa PPN'}
                 </span>
               </div>
             </div>
 
           </div>
 
-          {/* BAGIAN 3: DAFTAR ALAT KESEHATAN YANG DITAWARKAN */}
+          {/* BAGIAN 4: TABEL RINCIAN ITEM ALAT */}
           <div className="bg-white border border-[#D8D2CB] rounded-xl p-5 space-y-4 shadow-xs">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#D8D2CB]/60 pb-3">
               <div>
                 <h3 className="text-sm font-bold text-[#1C658C] flex items-center gap-2">
                   <Receipt className="w-4 h-4" />
-                  <span>3. Rincian Alat Kesehatan & Harga Penawaran</span>
+                  <span>Tabel Item Kalibrasi Alat Kesehatan</span>
                   <span className="text-xs bg-[#EEEEEE] text-slate-700 px-2 py-0.5 rounded-full font-mono border border-[#D8D2CB]">
                     {items.length} Item
                   </span>
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Daftar alat sesuai brosur resmi PT. Sarana Multi Kalibrasi
+                  Daftar alat sesuai format resmi Lampiran SPH PT. Sarana Multi Kalibrasi
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleLoadOfficialSample}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
+                  title="Muat 20 alat kesehatan sesuai dokumen SPH contoh resmi"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Muat Contoh 20 Alat Resmi</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => setShowCatalogModal(true)}
-                  className="px-3 py-1.5 bg-[#1C658C] hover:bg-[#398AB9] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1.5 transition-all"
+                  className="px-3 py-1.5 bg-[#1C658C] hover:bg-[#398AB9] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
                 >
                   <Search className="w-3.5 h-3.5" />
-                  <span>Pilih dari Katalog Brosur (121 Alat)</span>
+                  <span>Katalog Brosur (121 Alat)</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleAddItem()}
-                  className="px-3 py-1.5 bg-[#EEEEEE] hover:bg-[#D8D2CB]/60 text-slate-700 text-xs font-medium rounded-lg border border-[#D8D2CB] flex items-center gap-1.5 transition-all"
+                  className="px-3 py-1.5 bg-[#EEEEEE] hover:bg-[#D8D2CB]/60 text-slate-700 text-xs font-medium rounded-lg border border-[#D8D2CB] flex items-center gap-1.5 transition-all cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Tambah Baris Manual</span>
+                  <span>+ Tambah Baris Manual</span>
                 </button>
               </div>
             </div>
@@ -615,66 +944,71 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
             <div className="overflow-x-auto border border-[#D8D2CB] rounded-xl">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-[#EEEEEE] text-[#1C658C] border-b border-[#D8D2CB] font-bold">
-                    <th className="px-3 py-2.5 w-10 text-center">No</th>
-                    <th className="px-3 py-2.5 min-w-[200px]">Diskripsi (Nama Alat Kesehatan)</th>
-                    <th className="px-3 py-2.5 w-20 text-center">Qty</th>
-                    <th className="px-3 py-2.5 w-36 text-right">Harga Satuan (Rp)</th>
-                    <th className="px-3 py-2.5 w-36 text-right">Total Harga (Rp)</th>
-                    <th className="px-2 py-2.5 w-10 text-center">Aksi</th>
+                  <tr className="bg-[#00a2e8] text-white border-b border-black font-bold">
+                    <th className="px-2 py-2 w-10 text-center border-r border-black/30">No</th>
+                    <th className="px-3 py-2 min-w-[220px] border-r border-black/30">Diskripsi (Nama Alat)</th>
+                    <th className="px-2 py-2 w-16 text-center border-r border-black/30">Qty</th>
+                    <th className="px-2 py-2 w-20 text-center border-r border-black/30">Satuan</th>
+                    <th className="px-3 py-2 w-32 text-right border-r border-black/30">Harga Satuan (Rp)</th>
+                    <th className="px-3 py-2 w-36 text-right border-r border-black/30">Total Harga (Rp)</th>
+                    <th className="px-2 py-2 w-10 text-center">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#D8D2CB]/50">
+                <tbody className="divide-y divide-[#D8D2CB]/60">
                   {items.map((item, index) => (
                     <tr key={item.id} className="hover:bg-[#EEEEEE]/40 transition-colors">
-                      <td className="px-3 py-2 text-center text-slate-500 font-mono">
+                      {/* No */}
+                      <td className="px-2 py-2 text-center text-slate-700 font-mono font-semibold border-r border-[#D8D2CB]/40">
                         {index + 1}
                       </td>
 
-                      {/* Deskripsi & Catatan */}
-                      <td className="px-3 py-2">
+                      {/* Deskripsi */}
+                      <td className="px-2.5 py-2 border-r border-[#D8D2CB]/40">
                         <input
                           type="text"
                           value={item.description}
                           onChange={(e) => handleUpdateItem(item.id, 'description', e.target.value)}
                           placeholder="Nama alat kesehatan..."
-                          className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded px-2.5 py-1 text-xs text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none font-medium"
+                          className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded px-2 py-1 text-xs text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none font-medium"
                           required
-                        />
-                        <input
-                          type="text"
-                          value={item.notes || ''}
-                          onChange={(e) => handleUpdateItem(item.id, 'notes', e.target.value)}
-                          placeholder="Catatan khusus (misal: *Uji fungsi)..."
-                          className="w-full bg-transparent border-0 text-[10px] text-slate-500 placeholder:text-slate-400 px-2 py-0.5 mt-0.5 focus:ring-0 outline-none italic"
                         />
                       </td>
 
                       {/* Qty */}
-                      <td className="px-3 py-2 text-center">
+                      <td className="px-2 py-2 text-center border-r border-[#D8D2CB]/40">
                         <input
                           type="number"
                           min="1"
                           value={item.quantity}
                           onChange={(e) => handleUpdateItem(item.id, 'quantity', Math.max(1, parseInt(e.target.value) || 1))}
-                          className="w-16 bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded px-2 py-1 text-center text-xs font-bold text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none"
+                          className="w-14 bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded px-1.5 py-1 text-center text-xs font-bold text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none"
                           required
                         />
                       </td>
 
-                      {/* Negotiated Unit Price */}
-                      <td className="px-3 py-2 text-right">
+                      {/* Satuan */}
+                      <td className="px-2 py-2 text-center border-r border-[#D8D2CB]/40">
+                        <input
+                          type="text"
+                          value={item.unit || 'Unit'}
+                          onChange={(e) => handleUpdateItem(item.id, 'unit', e.target.value)}
+                          className="w-16 bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded px-1.5 py-1 text-center text-xs text-slate-900 focus:ring-1 focus:ring-[#1C658C] outline-none"
+                        />
+                      </td>
+
+                      {/* Unit Price */}
+                      <td className="px-2.5 py-2 text-right border-r border-[#D8D2CB]/40">
                         <input
                           type="number"
                           value={item.unitPrice}
                           onChange={(e) => handleUpdateItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                          className="w-32 bg-[#EEEEEE]/50 border border-[#398AB9] rounded px-2 py-1 text-right text-xs font-mono font-bold text-[#1C658C] focus:ring-1 focus:ring-[#1C658C] outline-none"
+                          className="w-28 bg-[#EEEEEE]/50 border border-[#398AB9] rounded px-2 py-1 text-right text-xs font-mono font-bold text-[#1C658C] focus:ring-1 focus:ring-[#1C658C] outline-none"
                           required
                         />
                       </td>
 
-                      {/* Total Price */}
-                      <td className="px-3 py-2 text-right font-mono font-bold text-slate-900">
+                      {/* Total Price (Otomatis = Qty * Unit Price) */}
+                      <td className="px-3 py-2 text-right font-mono font-bold text-slate-900 border-r border-[#D8D2CB]/40">
                         Rp {formatNumber(item.totalPrice)}
                       </td>
 
@@ -683,7 +1017,7 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
                         <button
                           type="button"
                           onClick={() => handleRemoveItem(item.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-all"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-all cursor-pointer"
                           title="Hapus baris alat"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -695,10 +1029,10 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
               </table>
             </div>
 
-            {/* Ringkasan Perhitungan Bawah */}
+            {/* Ringkasan Biaya & Pajak */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
               
-              {/* Opsi Tambahan (Akomodasi, PPN, PIC SMK) */}
+              {/* Opsi Tambahan (Akomodasi & PPN) */}
               <div className="space-y-3 text-xs">
                 <div className="flex items-center justify-between p-3 bg-[#EEEEEE]/40 border border-[#D8D2CB] rounded-xl">
                   <label className="text-slate-700 font-medium">Biaya Akomodasi & Transportasi (Rp):</label>
@@ -718,7 +1052,7 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
                       id="ppn-toggle"
                       checked={isPpnIncluded}
                       onChange={(e) => setIsPpnIncluded(e.target.checked)}
-                      className="rounded border-[#D8D2CB] text-[#1C658C] focus:ring-[#1C658C] w-4 h-4 bg-white"
+                      className="rounded border-[#D8D2CB] text-[#1C658C] focus:ring-[#1C658C] w-4 h-4 bg-white cursor-pointer"
                     />
                     <label htmlFor="ppn-toggle" className="text-slate-700 font-medium cursor-pointer">
                       Kenakan Pajak Pertambahan Nilai (PPN 11%)
@@ -729,83 +1063,26 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[11px] text-slate-500 mb-1">Marketing In Charge</label>
-                    <input
-                      type="text"
-                      value={marketingStaffName}
-                      onChange={(e) => setMarketingStaffName(e.target.value)}
-                      className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded px-2 py-1 text-xs text-slate-900"
-                      placeholder="Erwin"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-slate-500 mb-1">No. HP Marketing</label>
-                    <input
-                      type="text"
-                      value={marketingStaffPhone}
-                      onChange={(e) => setMarketingStaffPhone(e.target.value)}
-                      className="w-full bg-[#EEEEEE]/50 border border-[#D8D2CB] rounded px-2 py-1 text-xs text-slate-900"
-                      placeholder="0852-0006-0589"
-                    />
-                  </div>
-                </div>
-
-                {/* Status Dokumen SPH */}
+                {/* Terbilang Preview */}
                 <div className="p-3 bg-[#EEEEEE]/40 border border-[#D8D2CB] rounded-xl">
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1.5">
-                    Status Dokumen SPH:
-                  </label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as any)}
-                    className="w-full bg-white border border-[#D8D2CB] rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-[#1C658C] cursor-pointer"
-                  >
-                    <option value="Draft">Draft (Konsep Internal)</option>
-                    <option value="Terkirim ke RS">Terkirim ke RS (Review Manajemen)</option>
-                    <option value="Negosiasi">Negosiasi (Penyesuaian Tarif/Volume)</option>
-                    <option value="Disetujui (Deal)">Disetujui (Deal) ⚡ (Masuk Penjadwalan RS)</option>
-                    <option value="Ditolak">Ditolak (Batal)</option>
-                  </select>
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    {status === 'Disetujui (Deal)' 
-                      ? '⚡ Status Deal akan otomatis memasukkan penawaran ini ke agenda Penjadwalan Kalibrasi RS.'
-                      : status === 'Draft' 
-                      ? 'Draf disimpan internal dan belum diserahkan ke pihak rumah sakit.'
-                      : status === 'Terkirim ke RS'
-                      ? 'Menandai penawaran resmi telah terkirim dan menunggu keputusan pihak RS.'
-                      : status === 'Negosiasi'
-                      ? 'Sedang dalam proses penyesuaian tarif dengan manajemen rumah sakit.'
-                      : 'Penawaran tidak disepakati atau dibatalkan oleh rumah sakit.'}
+                  <span className="text-[11px] font-semibold text-slate-700 block mb-1">Terbilang (Otomatis):</span>
+                  <p className="font-serif italic text-slate-700 text-xs">
+                    "{angkaTerbilang(grandTotal)}"
                   </p>
-                  
-                  <div className="mt-4 pt-4 border-t border-[#D8D2CB]">
-                    <PdfUploader 
-                      folder="sph"
-                      documentId={initialSph?.id || sphNumber.replace(/[^a-zA-Z0-9_-]/g, '_') || `sph_${Date.now()}`}
-                      existingPdfUrl={pdfUrl}
-                      label="Upload Lampiran SPH / Dokumen Terkirim (PDF / Scan)"
-                      onUploadSuccess={setPdfUrl}
-                      onRemove={() => setPdfUrl(undefined)}
-                    />
-                  </div>
                 </div>
               </div>
 
-              {/* Rekapitulasi Angka (Subtotal 1, Akomodasi, PPN, Grand Total) */}
+              {/* Rekapitulasi Angka (Subtotal 1, Akomodasi, Total 2, PPN, Grand Total) */}
               <div className="bg-[#EEEEEE]/50 border border-[#D8D2CB] p-4 rounded-xl space-y-2 text-xs">
                 <div className="flex justify-between text-slate-600">
-                  <span>Total 1 (Harga Alat Kalibrasi):</span>
+                  <span>Total 1 (Subtotal Biaya Kalibrasi):</span>
                   <span className="font-mono font-semibold text-slate-800">Rp {formatNumber(subtotal1)}</span>
                 </div>
 
-                {accommodationFee > 0 && (
-                  <div className="flex justify-between text-slate-600">
-                    <span>Akomodasi & Transportasi:</span>
-                    <span className="font-mono text-slate-800">Rp {formatNumber(accommodationFee)}</span>
-                  </div>
-                )}
+                <div className="flex justify-between text-slate-600">
+                  <span>Akomodasi & Transportasi:</span>
+                  <span className="font-mono text-slate-800">Rp {formatNumber(accommodationFee)}</span>
+                </div>
 
                 <div className="flex justify-between text-slate-600">
                   <span>Total 2:</span>
@@ -813,13 +1090,13 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
                 </div>
 
                 <div className="flex justify-between text-slate-600">
-                  <span>{isPpnIncluded ? 'PPN 11%:' : 'PPN (Non-Aktif):'}</span>
+                  <span>{isPpnIncluded ? 'PPN 11%:' : 'PPN 11% (Non-Aktif):'}</span>
                   <span className="font-mono text-slate-800">Rp {formatNumber(ppnAmount)}</span>
                 </div>
 
-                <div className="border-t-2 border-[#1C658C] pt-2 flex justify-between items-center text-sm font-bold text-[#1C658C]">
-                  <span className="uppercase">GRAND TOTAL DEAL:</span>
-                  <span className="font-mono text-lg font-black">
+                <div className="border-t-2 border-[#00a2e8] pt-2 flex justify-between items-center text-sm font-bold text-[#1C658C]">
+                  <span className="uppercase">GRAND TOTAL PENAWARAN:</span>
+                  <span className="font-mono text-lg font-black text-[#1C658C]">
                     Rp {formatNumber(grandTotal)}
                   </span>
                 </div>
@@ -828,22 +1105,33 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
             </div>
           </div>
 
-          {/* Footer Submit Buttons */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#D8D2CB]">
+          {/* Footer Submit & Download Buttons */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-[#D8D2CB]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 bg-white hover:bg-[#EEEEEE] text-slate-700 text-xs font-semibold rounded-xl border border-[#D8D2CB] transition-all"
+              className="px-4 py-2 bg-white hover:bg-[#EEEEEE] text-slate-700 text-xs font-semibold rounded-xl border border-[#D8D2CB] transition-all cursor-pointer"
             >
               Batal
             </button>
-            <button
-              type="submit"
-              className="px-6 py-2.5 bg-[#1C658C] hover:bg-[#398AB9] active:scale-98 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-2"
-            >
-              <Check className="w-4 h-4" />
-              <span>Simpan Surat Penawaran Harga (SPH)</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={isGeneratingPdf}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                <Download className="w-4 h-4" />
+                <span>{isGeneratingPdf ? 'Menghasilkan PDF Resmi...' : 'Download PDF (Kop Surat Resmi)'}</span>
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2.5 bg-[#1C658C] hover:bg-[#398AB9] active:scale-98 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer"
+              >
+                <Check className="w-4 h-4" />
+                <span>Simpan Surat Penawaran Harga (SPH)</span>
+              </button>
+            </div>
           </div>
 
         </form>
@@ -865,7 +1153,7 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
                 </div>
                 <button
                   onClick={() => setShowCatalogModal(false)}
-                  className="p-1.5 text-white/80 hover:text-white rounded-lg transition-colors"
+                  className="p-1.5 text-white/80 hover:text-white rounded-lg transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -928,7 +1216,7 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
 
                       <button
                         type="button"
-                        className="px-2.5 py-1 bg-[#1C658C]/10 hover:bg-[#1C658C] text-[#1C658C] hover:text-white border border-[#1C658C]/20 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all"
+                        className="px-2.5 py-1 bg-[#1C658C]/10 hover:bg-[#1C658C] text-[#1C658C] hover:text-white border border-[#1C658C]/20 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>Tambah</span>
@@ -942,7 +1230,7 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
                 <span>Ditemukan {filteredCatalog.length} alat medis</span>
                 <button
                   onClick={() => setShowCatalogModal(false)}
-                  className="px-4 py-1.5 bg-[#1C658C] hover:bg-[#398AB9] text-white font-semibold rounded-lg shadow-xs transition-colors"
+                  className="px-4 py-1.5 bg-[#1C658C] hover:bg-[#398AB9] text-white font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
                 >
                   Selesai Memilih
                 </button>

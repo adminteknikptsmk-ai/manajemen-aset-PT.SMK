@@ -1,20 +1,116 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { CompanyLogo } from './CompanyLogo';
 import { KanLogo } from './KanLogo';
+import { getLocalBlob } from '../lib/localBlobStorage';
+import { getFullTemplatesConfig } from '../lib/templateService';
 
 interface OfficialLetterheadProps {
   className?: string;
   showKan?: boolean;
   showDecoration?: boolean;
   subtitle?: string;
+  customLetterheadUrl?: string | null;
 }
 
 export const OfficialLetterhead: React.FC<OfficialLetterheadProps> = ({
   className = '',
   showKan = true,
   showDecoration = true,
-  subtitle = 'Laboratorium Kalibrasi'
+  subtitle = 'Laboratorium Kalibrasi',
+  customLetterheadUrl
 }) => {
+  const [resolvedLetterheadSrc, setResolvedLetterheadSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadLetterhead() {
+      try {
+        let targetUrl = customLetterheadUrl;
+        
+        // If not provided explicitly, auto-fetch from template configuration
+        if (targetUrl === undefined) {
+          const config = await getFullTemplatesConfig();
+          targetUrl = config.kop_surat?.activeUrl || null;
+        }
+
+        if (!targetUrl) {
+          if (isMounted) setResolvedLetterheadSrc(null);
+          return;
+        }
+
+        // Resolve idb:// references to data URLs
+        const resolved = targetUrl.startsWith('idb://') ? await getLocalBlob(targetUrl) : targetUrl;
+        
+        // Check if resolved URL is an image or PDF
+        const isImage = 
+          resolved.startsWith('data:image/') ||
+          resolved.endsWith('.png') ||
+          resolved.endsWith('.jpg') ||
+          resolved.endsWith('.jpeg') ||
+          resolved.endsWith('.webp') ||
+          resolved.includes('image/');
+
+        const isPdf =
+          resolved.startsWith('data:application/pdf') ||
+          resolved.endsWith('.pdf') ||
+          resolved.includes('application/pdf');
+
+        if ((isImage || isPdf) && isMounted) {
+          setResolvedLetterheadSrc(resolved);
+        } else {
+          if (isMounted) setResolvedLetterheadSrc(null);
+        }
+      } catch (err) {
+        console.warn('Could not load custom letterhead for OfficialLetterhead:', err);
+        if (isMounted) setResolvedLetterheadSrc(null);
+      }
+    }
+
+    loadLetterhead();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [customLetterheadUrl]);
+
+  // If a custom image or PDF letterhead is uploaded, render the exact uploaded letterhead!
+  if (resolvedLetterheadSrc) {
+    const isPdf = 
+      resolvedLetterheadSrc.startsWith('data:application/pdf') || 
+      resolvedLetterheadSrc.endsWith('.pdf') ||
+      resolvedLetterheadSrc.includes('application/pdf');
+
+    if (isPdf) {
+      return (
+        <div className={`relative w-full pb-3 select-none flex justify-center items-center ${className}`} id="official-kop-surat-header">
+          <object 
+            data={`${resolvedLetterheadSrc}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`} 
+            type="application/pdf" 
+            className="w-full h-32 sm:h-36 print:h-36 mx-auto pointer-events-none rounded-lg overflow-hidden border-0" 
+            title="Kop Surat Resmi PT. Sarana Multi Kalibrasi"
+          >
+            <iframe 
+              src={`${resolvedLetterheadSrc}#toolbar=0&navpanes=0&scrollbar=0`}
+              className="w-full h-32 sm:h-36 border-0 pointer-events-none"
+              title="Kop Surat PDF"
+            />
+          </object>
+        </div>
+      );
+    }
+
+    return (
+      <div className={`relative w-full pb-3 select-none flex justify-center items-center ${className}`} id="official-kop-surat-header">
+        <img 
+          src={resolvedLetterheadSrc} 
+          alt="Kop Surat Resmi PT. Sarana Multi Kalibrasi" 
+          className="w-full object-contain max-h-32 sm:max-h-36 print:max-h-36 mx-auto pointer-events-none" 
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={`relative w-full pb-4 select-none ${className}`} id="official-kop-surat-header">
       {/* Top Right Decorative Faceted Crystal Graphic (Exact match with official PT. SMK letterhead PDF) */}

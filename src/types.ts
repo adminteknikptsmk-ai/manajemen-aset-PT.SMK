@@ -285,7 +285,10 @@ export interface SphQuotation {
   hospitalAddress: string;
   hospitalPic?: string;
   hospitalPhone?: string;
-  recipientRole?: string;       // Direktur
+  recipientRole?: string;       // Direktur (UP)
+  tembusan?: string;           // Direktur, dll
+  notes?: string;              // Catatan tambahan / strip '-'
+  formattedDate?: string;      // Kota, tanggal bulan tahun
   items: SphItem[];
   subtotalOriginal: number;    // Total awal sebelum negosiasi
   subtotal1: number;           // Total harga alat setelah negosiasi
@@ -312,6 +315,37 @@ export interface SphQuotation {
   pdfUrl?: string;             // Link to uploaded SPH PDF
   createdAt: string;
   validUntilDate: string;
+}
+
+export interface BapItem {
+  id: string;
+  no: number;
+  namaAlat: string;
+  poQty: number;
+  realisasi: Record<string, number>; // Mapping from dateColumn (e.g. 'Tgl 03') to quantity
+  total: number;                     // Sum of all realisasi quantities
+  sisa: number;                      // poQty - total
+  keterangan: string;                // e.g. 'Batal', 'Selesai', 'Pending'
+}
+
+export interface BapDocument {
+  id: string;
+  sphId: string;
+  sphNumber: string;                 // No. PO
+  customerName: string;              // Nama RS / Customer
+  poDate: string;                    // Tanggal PO
+  address: string;                   // Alamat RS
+  cityDistrict: string;              // Kota/Kab.
+  labelNumber: string;               // No. Label (e.g. "066")
+  bastpNumber: string;               // No. BASTP (e.g. "066/SMK/BASTP/IX/2026")
+  dateColumns: string[];             // Dynamic realization dates e.g. ["Tgl 03", "Tgl 04"]
+  items: BapItem[];                  // Sheet Rekap & BAP
+  nonPoItems: BapItem[];             // Sheet Rekap Non PO & BAP Non PO
+  technicianName?: string;
+  adminName?: string;
+  status?: 'Draft' | 'Dalam Pekerjaan' | 'Selesai';
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface TabletDevice {

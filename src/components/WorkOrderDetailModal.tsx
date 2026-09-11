@@ -413,7 +413,7 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
                 }}
                 onRemove={() => {
                   setBapPdfUrl(undefined);
-                  onUpdateSchedule({ ...schedule, bapPdfUrl: undefined });
+                  onUpdateSchedule({ ...schedule, bapPdfUrl: '' });
                 }}
               />
             </div>
@@ -433,7 +433,7 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
                 }}
                 onRemove={() => {
                   setBastpPdfUrl(undefined);
-                  onUpdateSchedule({ ...schedule, bastpPdfUrl: undefined });
+                  onUpdateSchedule({ ...schedule, bastpPdfUrl: '' });
                 }}
               />
             </div>

@@ -14,6 +14,7 @@ import { SphFormModal } from './components/SphFormModal';
 import { SphPrintModal } from './components/SphPrintModal';
 import { TabletLoanManager } from './components/TabletLoanManager';
 import { TemplateSettings } from './components/TemplateSettings';
+import { SeliaDashboard } from './components/SeliaDashboard';
 
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -28,7 +29,8 @@ import {
   MarketingStaff,
   SphQuotation,
   TabletDevice,
-  TabletLoan
+  TabletLoan,
+  BapDocument
 } from './types';
 
 import { getUrgencyInfo, generateWhatsAppMessage, TODAY_STR, calculateLabelRange, assignDeviceLabels } from './utils/helpers';
@@ -37,16 +39,18 @@ import confetti from 'canvas-confetti';
 import { Check, Send, AlertCircle, ArrowLeft, LogOut } from 'lucide-react';
 import { useFirestoreData } from './firebase/useFirestoreData';
 import { useAuth } from './firebase/AuthContext';
+import { BapModal } from './components/BapModal';
+import { createBapFromSph } from './utils/bapHelpers';
 
 export default function App() {
   const { user, isAdmin, logout } = useAuth();
   
   // Navigation State
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'sph' | 'schedules' | 'calibrators' | 'tablets' | 'financial' | 'masters' | 'templates'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'sph' | 'schedules' | 'selia' | 'calibrators' | 'tablets' | 'financial' | 'masters' | 'templates'>('dashboard');
   const [slideDirection, setSlideDirection] = useState<number>(1);
 
-  const handleSelectCoreSlide = (newTab: 'dashboard' | 'sph' | 'schedules') => {
-    const order: Record<string, number> = { dashboard: 0, sph: 1, schedules: 2 };
+  const handleSelectCoreSlide = (newTab: 'dashboard' | 'sph' | 'schedules' | 'selia') => {
+    const order: Record<string, number> = { dashboard: 0, sph: 1, schedules: 2, selia: 3 };
     const currentIdx = order[activeTab] ?? 0;
     const newIdx = order[newTab] ?? 0;
     setSlideDirection(newIdx >= currentIdx ? 1 : -1);
@@ -64,6 +68,7 @@ export default function App() {
   const { data: tablets, add: addTablet, update: updateTablet, remove: removeTablet, clearAll: clearAllTablets } = useFirestoreData<TabletDevice>('tabletAssets');
   const { data: tabletLoans, add: addTabletLoan, update: updateTabletLoanDb, remove: removeTabletLoanDb, clearAll: clearAllTabletLoans } = useFirestoreData<TabletLoan>('tabletLoans');
   const { data: marketingList, add: addMarketing, remove: removeMarketing, clearAll: clearAllMarketing } = useFirestoreData<MarketingStaff>('marketingStaff');
+  const { data: bapDocuments, add: addBapDocument, update: updateBapDocument, remove: removeBapDocument, clearAll: clearAllBapDocuments } = useFirestoreData<BapDocument>('bapDocuments');
 
   // Fallback to official 57 calibrators and 6 tablets if database collection is empty
   const effectiveCalibrators = calibrators.length > 0 ? calibrators : SPREADSHEET_CALIBRATORS;
@@ -134,6 +139,44 @@ export default function App() {
   const [showSphModal, setShowSphModal] = useState(false);
   const [editingSph, setEditingSph] = useState<SphQuotation | null>(null);
   const [printSph, setPrintSph] = useState<SphQuotation | null>(null);
+
+  // BAP (Berita Acara Pekerjaan) States
+  const [selectedBap, setSelectedBap] = useState<BapDocument | null>(null);
+  const [selectedSphForBap, setSelectedSphForBap] = useState<SphQuotation | null>(null);
+  const [showBapModal, setShowBapModal] = useState(false);
+
+  // Helper to ensure BAP exists for an approved (Deal) SPH
+  const ensureBapForSph = (sph: SphQuotation): BapDocument => {
+    const existing = bapDocuments.find(b => b.sphId === sph.id || b.sphNumber === sph.sphNumber);
+    if (existing) {
+      return existing;
+    }
+    const newBap = createBapFromSph(sph);
+    addBapDocument(newBap);
+    return newBap;
+  };
+
+  const handleOpenBap = (sph: SphQuotation) => {
+    let bap = bapDocuments.find(b => b.sphId === sph.id || b.sphNumber === sph.sphNumber);
+    if (!bap) {
+      bap = createBapFromSph(sph);
+      addBapDocument(bap);
+    }
+    setSelectedBap(bap);
+    setSelectedSphForBap(sph);
+    setShowBapModal(true);
+  };
+
+  const handleSaveBap = (bapToSave: BapDocument) => {
+    const exists = bapDocuments.some(b => b.id === bapToSave.id);
+    if (exists) {
+      updateBapDocument(bapToSave);
+    } else {
+      addBapDocument(bapToSave);
+    }
+    setSelectedBap(bapToSave);
+    showToast(`Dokumen BAP 4 Sheet (${bapToSave.sphNumber}) berhasil disimpan!`);
+  };
 
   // Toast Notification State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -226,6 +269,7 @@ export default function App() {
 
     if (sphToSave.status === 'Disetujui (Deal)') {
       syncSphToSchedule(sphToSave);
+      ensureBapForSph(sphToSave);
     }
   };
 
@@ -242,7 +286,8 @@ export default function App() {
 
     if (newStatus === 'Disetujui (Deal)') {
       syncSphToSchedule(updatedSph);
-      showToast(`SPH ${targetSph.sphNumber} Disetujui (Deal)! Otomatis masuk ke Penjadwalan Kalibrasi RS.`);
+      ensureBapForSph(updatedSph);
+      showToast(`SPH ${targetSph.sphNumber} Deal! Otomatis dibuatkan dokumen BAP (4 Sheet) & masuk Jadwal RS.`);
       confetti({ particleCount: 75, spread: 65 });
     } else {
       showToast(`Status SPH ${targetSph.sphNumber} berhasil diubah menjadi "${newStatus}".`);
@@ -454,8 +499,8 @@ export default function App() {
         const updatedTablet: TabletDevice = {
           ...targetTablet,
           isAvailable: true,
-          currentBorrower: undefined,
-          currentLoanId: undefined
+          currentBorrower: '',
+          currentLoanId: ''
         };
         if (tablets.some(t => t.id === targetTablet.id)) {
           updateTablet(updatedTablet);
@@ -491,8 +536,8 @@ export default function App() {
       const updatedTablet: TabletDevice = {
         ...targetTablet,
         isAvailable: true,
-        currentBorrower: undefined,
-        currentLoanId: undefined
+        currentBorrower: '',
+        currentLoanId: ''
       };
       if (tablets.some(t => t.id === targetTablet.id)) {
         updateTablet(updatedTablet);
@@ -628,6 +673,8 @@ export default function App() {
                 onUpdateStatus={handleUpdateSphStatus}
                 onNavigateToSchedules={() => setActiveTab('schedules')}
                 hospitals={hospitals}
+                bapDocuments={bapDocuments}
+                onOpenBap={handleOpenBap}
               />
             </motion.div>
           )}
@@ -658,7 +705,22 @@ export default function App() {
                 onOpenPrintModal={(sch) => setPrintSchedule(sch)}
                 onSendReminder={handleSendAutomatedReminder}
                 onDeleteSchedule={handleDeleteSchedule}
-                onNavigateToSelia={() => setActiveTab('masters')}
+                onNavigateToSelia={() => setActiveTab('selia')}
+              />
+            </motion.div>
+          )}
+
+          {activeTab === 'selia' && (
+            <motion.div
+              key="tab-selia"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+            >
+              <SeliaDashboard
+                schedules={schedules}
+                onUpdateSchedule={updateSchedule}
               />
             </motion.div>
           )}
@@ -850,7 +912,7 @@ export default function App() {
             setShowNewScheduleModal(true);
           }}
           onSendReminder={handleSendAutomatedReminder}
-          onOpenSeliaManager={() => setActiveTab('masters')}
+          onOpenSeliaManager={() => setActiveTab('selia')}
         />
       )}
 
@@ -917,6 +979,22 @@ export default function App() {
             setPrintSph(null);
             handleConvertToSpkFromSph(sph);
           }}
+          onOpenBap={(sph) => handleOpenBap(sph)}
+        />
+      )}
+
+      {/* BAP (Berita Acara Pekerjaan) 4-Sheet Modal */}
+      {showBapModal && selectedBap && (
+        <BapModal
+          isOpen={showBapModal}
+          onClose={() => {
+            setShowBapModal(false);
+            setSelectedBap(null);
+            setSelectedSphForBap(null);
+          }}
+          bapDocument={selectedBap}
+          sph={selectedSphForBap || undefined}
+          onSaveBap={handleSaveBap}
         />
       )}
 

@@ -205,8 +205,8 @@ export const CalibratorAssetManager: React.FC<CalibratorAssetManagerProps> = ({
         onUpdateCalibrator({
           ...returningCalibrator,
           isAvailable: true,
-          currentBorrower: undefined,
-          currentLoanId: undefined,
+          currentBorrower: '',
+          currentLoanId: '',
           location: 'Ruang Master Metrologi PT SMK',
           currentHolderTechnician: 'Tersedia di Lab PT SMK'
         });
@@ -232,8 +232,8 @@ export const CalibratorAssetManager: React.FC<CalibratorAssetManagerProps> = ({
       onUpdateCalibrator({
         ...targetCal,
         isAvailable: !isBorrow,
-        currentBorrower: isBorrow ? loanToSave.borrowerName : undefined,
-        currentLoanId: isBorrow ? loanToSave.id : undefined,
+        currentBorrower: isBorrow ? loanToSave.borrowerName : '',
+        currentLoanId: isBorrow ? loanToSave.id : '',
         currentHolderTechnician: isBorrow ? loanToSave.borrowerName : 'Tersedia di Lab PT SMK'
       });
     }

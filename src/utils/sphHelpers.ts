@@ -213,3 +213,41 @@ export function generateSphNumber(existingCount: number = 45): string {
   const numberPadded = String(existingCount + 1).padStart(3, '0');
   return `${numberPadded}/SMK-SPH/${monthRoman}-${year}`;
 }
+
+/**
+ * Format tanggal dalam format resmi Indonesia: "Surakarta, 09 September 2026"
+ */
+export function formatIndonesianLongDate(dateStr: string, city: string = 'Surakarta'): string {
+  if (!dateStr) return `${city}, ${new Date().toLocaleDateString('id-ID')}`;
+  
+  const months = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
+
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return `${city}, ${dateStr}`;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = months[d.getMonth()];
+    const year = d.getFullYear();
+    return `${city}, ${day} ${month} ${year}`;
+  } catch {
+    return `${city}, ${dateStr}`;
+  }
+}
+
+/**
+ * Daftar Tim Marketing Resmi PT. Sarana Multi Kalibrasi (sesuai database)
+ */
+export const OFFICIAL_MARKETING_STAFF = [
+  { name: 'Sheva', phone: '0858-7867-5737' },
+  { name: 'Ari', phone: '0812-4484-2383' },
+  { name: 'Agus', phone: '0812-1503-1231' },
+  { name: 'Junior', phone: '0812-2686-2605' },
+  { name: 'Erwin', phone: '0852-0006-0589' },
+  { name: 'Fitri Nur Aini', phone: '0851-1234570' },
+  { name: 'Shifa Zalza Billa', phone: '0851-1234570' },
+  { name: 'Sulis', phone: '0821-3670-7421' },
+];
+

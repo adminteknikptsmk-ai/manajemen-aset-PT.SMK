@@ -1,6 +1,8 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import { sanitizeForFirestore } from '../firebase/useFirestoreData';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { getAuthenticKopSuratBase64 } from './kopSuratService';
 
 export type TemplateDocType = 'sph' | 'spk' | 'bap' | 'bastp' | 'kop_surat';
 
@@ -55,14 +57,14 @@ export async function createSamplePdfBase64(docTypeTitle: string, versionTitle: 
 
     // KOP SURAT RESMI
     page.drawText('PT. SARANA MULTI KALIBRASI', { x: 50, y: 790, size: 15, font: fontBold, color: rgb(0.11, 0.40, 0.55) });
-    page.drawText('Laboratorium Uji & Kalibrasi Fasilitas Kesehatan • Kemenkes RI & KAN LK-532-IDN', { x: 50, y: 772, size: 8.5, font: fontRegular, color: rgb(0.3, 0.3, 0.3) });
+    page.drawText('Laboratorium Uji & Kalibrasi Fasilitas Kesehatan | Kemenkes RI & KAN LK-532-IDN', { x: 50, y: 772, size: 8.5, font: fontRegular, color: rgb(0.3, 0.3, 0.3) });
     page.drawText('Jl. Kenari 3 No. A3, Ngipang RT 005/017 Kadipiro Banjarsari Surakarta | info@ptsaranamultikalibrasi.com', { x: 50, y: 760, size: 7.5, font: fontRegular, color: rgb(0.4, 0.4, 0.4) });
     page.drawLine({ start: { x: 50, y: 752 }, end: { x: 545, y: 752 }, thickness: 2, color: rgb(0.11, 0.40, 0.55) });
     page.drawLine({ start: { x: 50, y: 749 }, end: { x: 545, y: 749 }, thickness: 0.5, color: rgb(0.11, 0.40, 0.55) });
 
     // JUDUL DOKUMEN
     page.drawText(docTypeTitle.toUpperCase(), { x: 50, y: 715, size: 13, font: fontBold, color: rgb(0.08, 0.08, 0.08) });
-    page.drawText(`Template Format Dokumen Resmi • ${versionTitle} • [${docCode}]`, { x: 50, y: 700, size: 8.5, font: fontRegular, color: rgb(0.45, 0.45, 0.45) });
+    page.drawText(`Template Format Dokumen Resmi | ${versionTitle} | [${docCode}]`, { x: 50, y: 700, size: 8.5, font: fontRegular, color: rgb(0.45, 0.45, 0.45) });
 
     // BODY & PLACEHOLDERS
     page.drawText('Nomor Berkas      : {{sphNumber}} {{spkNumber}} {{bapNumber}}', { x: 50, y: 660, size: 9.5, font: fontRegular, color: rgb(0.1, 0.1, 0.1) });
@@ -75,9 +77,9 @@ export async function createSamplePdfBase64(docTypeTitle: string, versionTitle: 
     // TABLE MOCK
     page.drawRectangle({ x: 50, y: 440, width: 495, height: 90, color: rgb(0.97, 0.98, 0.99), borderColor: rgb(0.8, 0.85, 0.9), borderWidth: 1 });
     page.drawText('TABEL RINCIAN PENGUJIAN / KALIBRASI PERALATAN MEDIS', { x: 60, y: 512, size: 8.5, font: fontBold, color: rgb(0.11, 0.40, 0.55) });
-    page.drawText('• Baris 1: Alat Medis Radiologi / Terapi / ICU / Laboratorium Teruji', { x: 65, y: 492, size: 8.5, font: fontRegular, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText('• Status Kelaikan Fisik & Kalibrasi Sesuai Standar KAN LK-532-IDN', { x: 65, y: 474, size: 8.5, font: fontRegular, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText('• Daftar Alokasi Kalibrator Acuan & Tablet Digitalisasi Lapangan', { x: 65, y: 456, size: 8.5, font: fontRegular, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText('- Baris 1: Alat Medis Radiologi / Terapi / ICU / Laboratorium Teruji', { x: 65, y: 492, size: 8.5, font: fontRegular, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText('- Status Kelaikan Fisik & Kalibrasi Sesuai Standar KAN LK-532-IDN', { x: 65, y: 474, size: 8.5, font: fontRegular, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText('- Daftar Alokasi Kalibrator Acuan & Tablet Digitalisasi Lapangan', { x: 65, y: 456, size: 8.5, font: fontRegular, color: rgb(0.2, 0.2, 0.2) });
 
     // SIGNATURE AREA
     page.drawText('Surakarta, {{date}}', { x: 370, y: 220, size: 9.5, font: fontRegular });
@@ -101,37 +103,7 @@ export async function createSamplePdfBase64(docTypeTitle: string, versionTitle: 
 
 // Generate Blank A4 Letterhead (Kop Surat) PDF
 export async function createSampleLetterheadPdfBase64(): Promise<string> {
-  try {
-    const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([595.28, 841.89]); // A4 portrait
-    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
-
-    // KOP SURAT ATAS
-    page.drawText('PT. SARANA MULTI KALIBRASI', { x: 50, y: 795, size: 16, font: fontBold, color: rgb(0.11, 0.40, 0.55) });
-    page.drawText('Laboratorium Kalibrasi Alat Kesehatan • Akreditasi KAN LK-532-IDN', { x: 50, y: 776, size: 9, font: fontBold, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText('Izin Operasional Kemenkes RI No: 26062301565850001', { x: 50, y: 763, size: 8, font: fontRegular, color: rgb(0.35, 0.35, 0.35) });
-    page.drawText('Kantor & Laboratorium: Jl. Kenari 3 No. A3, Ngipang RT 005/ RW 017, Kadipiro, Banjarsari, Kota Surakarta', { x: 50, y: 750, size: 7.5, font: fontRegular, color: rgb(0.4, 0.4, 0.4) });
-    page.drawText('Hotline / WA: (0851) 1234570 | Telp: (0271) 2023035 | Email: ptsaranamultikalibrasi@gmail.com', { x: 50, y: 738, size: 7.5, font: fontRegular, color: rgb(0.4, 0.4, 0.4) });
-
-    page.drawLine({ start: { x: 50, y: 728 }, end: { x: 545, y: 728 }, thickness: 2, color: rgb(0.11, 0.40, 0.55) });
-    page.drawLine({ start: { x: 50, y: 724 }, end: { x: 545, y: 724 }, thickness: 0.5, color: rgb(0.11, 0.40, 0.55) });
-
-    // FOOTER KOP BAWAH
-    page.drawLine({ start: { x: 50, y: 55 }, end: { x: 545, y: 55 }, thickness: 0.8, color: rgb(0.7, 0.7, 0.7) });
-    page.drawText('PT. SARANA MULTI KALIBRASI • Lembaga Inspeksi & Kalibrasi Fasilitas Pelayanan Kesehatan Indonesia', { x: 50, y: 42, size: 7.5, font: fontRegular, color: rgb(0.5, 0.5, 0.5) });
-    page.drawText('www.saranamultikalibrasi.com | Kemenkes RI & Komite Akreditasi Nasional (KAN)', { x: 50, y: 32, size: 7.5, font: fontRegular, color: rgb(0.5, 0.5, 0.5) });
-
-    const bytes = await pdfDoc.save();
-    let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return `data:application/pdf;base64,${btoa(binary)}`;
-  } catch (err) {
-    console.error('Error creating base64 letterhead PDF:', err);
-    return '';
-  }
+  return await getAuthenticKopSuratBase64();
 }
 
 // Built-in seed versions so users immediately have multiple versions to switch between
@@ -293,12 +265,40 @@ export const getFullTemplatesConfig = async (): Promise<DocumentTemplatesConfig>
           };
         }
       });
-      return config;
     }
+
+    // Check user-uploaded Kop Surat in localStorage first
+    try {
+      const localUploadedKop = localStorage.getItem('smk_kop_surat_pdf');
+      if (localUploadedKop && localUploadedKop.length > 100) {
+        config.kop_surat.activeUrl = localUploadedKop;
+        const uploadedName = localStorage.getItem('smk_kop_surat_name');
+        if (uploadedName) config.kop_surat.activeFileName = uploadedName;
+      }
+    } catch {
+      // ignore
+    }
+
+    // Ensure kop_surat activeUrl is NEVER an empty or broken stub
+    if (
+      !config.kop_surat.activeUrl ||
+      config.kop_surat.activeUrl.length < 100 ||
+      config.kop_surat.activeUrl.includes('JVBERi0xLjcKCjEgMCBvYmogICU')
+    ) {
+      config.kop_surat.activeUrl = await getAuthenticKopSuratBase64();
+      config.kop_surat.activeFileName = 'Kop_Surat_Resmi_PT_SMK.pdf';
+    }
+
     return config;
   } catch (error) {
     console.error("Error fetching template config:", error);
-    return getDefaultTemplatesConfig();
+    const fallback = getDefaultTemplatesConfig();
+    try {
+      fallback.kop_surat.activeUrl = await getAuthenticKopSuratBase64();
+    } catch {
+      // ignore
+    }
+    return fallback;
   }
 };
 
@@ -380,10 +380,10 @@ export const saveNewTemplateVersion = async (
     };
 
     const docRef = doc(db, 'settings', TEMPLATES_DOC_ID);
-    await setDoc(docRef, {
+    await setDoc(docRef, sanitizeForFirestore({
       [type]: fileUrl, // legacy compatibility
       [`config_${type}`]: updatedTypeConfig
-    }, { merge: true });
+    }), { merge: true });
 
     return newVersion;
   } catch (error) {
@@ -416,10 +416,10 @@ export const setActiveTemplateVersion = async (
     };
 
     const docRef = doc(db, 'settings', TEMPLATES_DOC_ID);
-    await setDoc(docRef, {
+    await setDoc(docRef, sanitizeForFirestore({
       [type]: targetVersion.fileUrl,
       [`config_${type}`]: updatedTypeConfig
-    }, { merge: true });
+    }), { merge: true });
   } catch (error) {
     console.error(`Error activating template version:`, error);
     throw error;
@@ -471,10 +471,10 @@ export const deleteTemplateVersion = async (
     };
 
     const docRef = doc(db, 'settings', TEMPLATES_DOC_ID);
-    await setDoc(docRef, {
+    await setDoc(docRef, sanitizeForFirestore({
       [type]: activeUrl,
       [`config_${type}`]: updatedTypeConfig
-    }, { merge: true });
+    }), { merge: true });
   } catch (error) {
     console.error(`Error deleting template version:`, error);
     throw error;
@@ -506,9 +506,9 @@ export const saveTemplateMappings = async (
     };
 
     const docRef = doc(db, 'settings', TEMPLATES_DOC_ID);
-    await setDoc(docRef, {
+    await setDoc(docRef, sanitizeForFirestore({
       [`config_${type}`]: updatedTypeConfig
-    }, { merge: true });
+    }), { merge: true });
   } catch (error) {
     console.error(`Error saving mappings for ${type}:`, error);
     throw error;

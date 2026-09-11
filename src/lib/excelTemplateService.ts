@@ -1,6 +1,7 @@
 import * as XLSXModule from 'xlsx';
 const XLSX = (XLSXModule as any).default || XLSXModule;
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { getLocalBlob } from './localBlobStorage';
 
 export interface ExcelCellData {
   value: any;
@@ -136,24 +137,46 @@ export async function convertExcelToPdfBytes(
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontOblique = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
-  // If letterhead PDF is provided, load its pages to use as background
+  // If letterhead PDF or image is provided, load to use as background
   let letterheadPdfDoc: PDFDocument | null = null;
+  let letterheadImg: any = null;
   if (letterheadPdfUrl) {
     try {
+      const resolvedLhUrl = letterheadPdfUrl.startsWith('idb://') 
+        ? await getLocalBlob(letterheadPdfUrl) 
+        : letterheadPdfUrl;
+
       let lhBuffer: ArrayBuffer;
-      if (letterheadPdfUrl.startsWith('data:')) {
-        const base64 = letterheadPdfUrl.split(',')[1];
+      if (resolvedLhUrl.startsWith('data:')) {
+        const base64 = resolvedLhUrl.split(',')[1];
         const binary = atob(base64);
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         lhBuffer = bytes.buffer;
       } else {
-        const res = await fetch(letterheadPdfUrl);
+        const res = await fetch(resolvedLhUrl);
         lhBuffer = await res.arrayBuffer();
       }
-      letterheadPdfDoc = await PDFDocument.load(lhBuffer, { ignoreEncryption: true });
+
+      const isPng = resolvedLhUrl.startsWith('data:image/png') || resolvedLhUrl.endsWith('.png');
+      const isJpg = resolvedLhUrl.startsWith('data:image/jpeg') || resolvedLhUrl.startsWith('data:image/jpg') || resolvedLhUrl.endsWith('.jpg') || resolvedLhUrl.endsWith('.jpeg');
+      const isImg = isPng || isJpg || resolvedLhUrl.startsWith('data:image/');
+
+      if (isImg) {
+        try {
+          letterheadImg = isPng ? await pdfDoc.embedPng(lhBuffer) : await pdfDoc.embedJpg(lhBuffer);
+        } catch {
+          try {
+            letterheadImg = await pdfDoc.embedPng(lhBuffer);
+          } catch {
+            letterheadImg = await pdfDoc.embedJpg(lhBuffer);
+          }
+        }
+      } else {
+        letterheadPdfDoc = await PDFDocument.load(lhBuffer, { ignoreEncryption: true });
+      }
     } catch (e) {
-      console.warn('Could not load letterhead PDF for Excel converter:', e);
+      console.warn('Could not load letterhead for Excel converter:', e);
     }
   }
 
@@ -188,7 +211,19 @@ export async function convertExcelToPdfBytes(
     let currentY = pageH - 45;
 
     // Overlay letterhead background if available
-    if (letterheadPdfDoc && letterheadPdfDoc.getPageCount() > 0) {
+    if (letterheadImg) {
+      const aspect = letterheadImg.width / letterheadImg.height;
+      if (aspect < 0.8) {
+        // Full page A4 letterhead
+        page.drawImage(letterheadImg, { x: 0, y: 0, width: pageW, height: pageH });
+        currentY = pageH - 125;
+      } else {
+        // Top banner letterhead
+        const bannerH = pageW / aspect;
+        page.drawImage(letterheadImg, { x: 0, y: pageH - bannerH, width: pageW, height: bannerH });
+        currentY = pageH - bannerH - 15;
+      }
+    } else if (letterheadPdfDoc && letterheadPdfDoc.getPageCount() > 0) {
       try {
         const [embeddedLh] = await pdfDoc.embedPdf(letterheadPdfDoc, [0]);
         page.drawPage(embeddedLh, {

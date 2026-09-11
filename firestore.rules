@@ -1,7 +1,86 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Global rule for app operational data
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper to get current user data
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Helper to check if user has admin privileges
+    function isAdmin() {
+      return isAuthenticated() && (
+        getUserData().role == 'admin' || 
+        getUserData().role == 'admin_teknik' || 
+        getUserData().role == 'admin_keuangan' ||
+        request.auth.token.email.matches('.*@ptsmk\\.com$') ||
+        request.auth.token.email == 'adminteknik.ptsmk@gmail.com'
+      );
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Settings Collection (Branding, Document Templates, etc.)
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    // SPH Documents Collection
+    match /sphDocuments/{docId} {
+      allow read, write: if true;
+    }
+
+    // BAP Documents Collection (4 Sheets: Rekap, BAP, Rekap Non PO, BAP Non PO)
+    match /bapDocuments/{docId} {
+      allow read, write: if true;
+    }
+
+    // Operational Business Collections
+    match /schedules/{docId} {
+      allow read, write: if true;
+    }
+
+    match /calibratorAssets/{docId} {
+      allow read, write: if true;
+    }
+
+    match /tabletAssets/{docId} {
+      allow read, write: if true;
+    }
+
+    match /tabletLoans/{docId} {
+      allow read, write: if true;
+    }
+
+    match /financialAssets/{docId} {
+      allow read, write: if true;
+    }
+
+    match /financialTransactions/{docId} {
+      allow read, write: if true;
+    }
+
+    match /hospitals/{docId} {
+      allow read, write: if true;
+    }
+
+    match /technicians/{docId} {
+      allow read, write: if true;
+    }
+
+    match /marketingStaff/{docId} {
+      allow read, write: if true;
+    }
+
+    // Fallback: allow read, write
     match /{document=**} {
       allow read, write: if true;
     }

@@ -1,16 +1,16 @@
 {
   "projectInfo": {
     "name": "PT SMK Management System",
-    "description": "Asset, schedule, and financial management application with RBAC"
+    "description": "Integrated calibration management, assets, schedules, finances, and SPH generation system"
   },
   "roles": [
     {
-      "name": "admin",
-      "description": "Admin with full access to finance, documents, and settings"
+      "name": "admin_teknik",
+      "description": "Technical Admin with full management of calibrator assets, tablets, technician assignments, and schedules"
     },
     {
-      "name": "user",
-      "description": "Standard user, can manage basic assets, schedules, and view documents"
+      "name": "admin_keuangan",
+      "description": "Finance Admin with full management of financial transactions, revenues, contracts, and SPH deals"
     }
   ],
   "collections": [
@@ -18,42 +18,18 @@
       "name": "users",
       "documentId": "uid",
       "fields": [
-        {
-          "name": "uid",
-          "type": "string",
-          "description": "Firebase Auth UID"
-        },
-        {
-          "name": "email",
-          "type": "string",
-          "description": "User email address"
-        },
-        {
-          "name": "displayName",
-          "type": "string",
-          "description": "User's full name"
-        },
-        {
-          "name": "role",
-          "type": "string",
-          "description": "Assigned role (admin or user)"
-        },
-        {
-          "name": "createdAt",
-          "type": "timestamp",
-          "description": "Account creation time"
-        },
-        {
-          "name": "updatedAt",
-          "type": "timestamp",
-          "description": "Last update time"
-        }
+        { "name": "uid", "type": "string" },
+        { "name": "email", "type": "string" },
+        { "name": "displayName", "type": "string" },
+        { "name": "role", "type": "string" },
+        { "name": "createdAt", "type": "timestamp" },
+        { "name": "updatedAt", "type": "timestamp" }
       ],
       "rules": {
-        "read": "request.auth != null && (request.auth.uid == resource.data.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')",
-        "create": "request.auth != null",
-        "update": "request.auth != null && (request.auth.uid == resource.data.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')",
-        "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+        "read": "true",
+        "create": "true",
+        "update": "true",
+        "delete": "true"
       }
     },
     {
@@ -61,20 +37,27 @@
       "documentId": "auto-generated",
       "fields": [
         { "name": "id", "type": "string" },
+        { "name": "code", "type": "string" },
         { "name": "name", "type": "string" },
+        { "name": "category", "type": "string" },
+        { "name": "brand", "type": "string" },
+        { "name": "model", "type": "string" },
         { "name": "serialNumber", "type": "string" },
-        { "name": "status", "type": "string" },
-        { "name": "lastCalibrationDate", "type": "string" },
-        { "name": "nextCalibrationDate", "type": "string" },
-        { "name": "calibrationCertificate", "type": "string", "description": "URL to PDF" },
-        { "name": "createdAt", "type": "timestamp" },
-        { "name": "updatedAt", "type": "timestamp" }
+        { "name": "condition", "type": "string" },
+        { "name": "lastCalibratedDate", "type": "string" },
+        { "name": "nextCalibrationDueDate", "type": "string" },
+        { "name": "calibrationLab", "type": "string" },
+        { "name": "certificateNumber", "type": "string" },
+        { "name": "location", "type": "string" },
+        { "name": "isAvailable", "type": "boolean" },
+        { "name": "purchasePrice", "type": "number" },
+        { "name": "currentValue", "type": "number" }
       ],
       "rules": {
-        "read": "request.auth != null",
-        "create": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
-        "update": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
-        "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+        "read": "true",
+        "create": "true",
+        "update": "true",
+        "delete": "true"
       }
     },
     {
@@ -82,20 +65,41 @@
       "documentId": "auto-generated",
       "fields": [
         { "name": "id", "type": "string" },
+        { "name": "unitNumber", "type": "number" },
         { "name": "name", "type": "string" },
-        { "name": "type", "type": "string" },
-        { "name": "status", "type": "string" },
-        { "name": "borrowerName", "type": "string" },
-        { "name": "borrowDate", "type": "string" },
-        { "name": "notes", "type": "string" },
-        { "name": "createdAt", "type": "timestamp" },
-        { "name": "updatedAt", "type": "timestamp" }
+        { "name": "code", "type": "string" },
+        { "name": "model", "type": "string" },
+        { "name": "serialNumber", "type": "string" },
+        { "name": "condition", "type": "string" },
+        { "name": "isAvailable", "type": "boolean" },
+        { "name": "currentBorrower", "type": "string" },
+        { "name": "notes", "type": "string" }
       ],
       "rules": {
-        "read": "request.auth != null",
-        "create": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
-        "update": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
-        "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+        "read": "true",
+        "create": "true",
+        "update": "true",
+        "delete": "true"
+      }
+    },
+    {
+      "name": "tabletLoans",
+      "documentId": "auto-generated",
+      "fields": [
+        { "name": "id", "type": "string" },
+        { "name": "loanNumber", "type": "string" },
+        { "name": "tabletId", "type": "string" },
+        { "name": "borrowerName", "type": "string" },
+        { "name": "borrowDate", "type": "string" },
+        { "name": "expectedReturnDate", "type": "string" },
+        { "name": "status", "type": "string" },
+        { "name": "notes", "type": "string" }
+      ],
+      "rules": {
+        "read": "true",
+        "create": "true",
+        "update": "true",
+        "delete": "true"
       }
     },
     {
@@ -103,19 +107,19 @@
       "documentId": "auto-generated",
       "fields": [
         { "name": "id", "type": "string" },
+        { "name": "workOrderNumber", "type": "string" },
         { "name": "hospitalName", "type": "string" },
-        { "name": "date", "type": "string" },
-        { "name": "technicians", "type": "array", "items": { "type": "string" } },
+        { "name": "scheduledDate", "type": "string" },
+        { "name": "leadTechnicianName", "type": "string" },
         { "name": "status", "type": "string" },
-        { "name": "notes", "type": "string" },
-        { "name": "createdAt", "type": "timestamp" },
-        { "name": "updatedAt", "type": "timestamp" }
+        { "name": "contractValue", "type": "number" },
+        { "name": "notes", "type": "string" }
       ],
       "rules": {
-        "read": "request.auth != null",
-        "create": "request.auth != null",
-        "update": "request.auth != null",
-        "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+        "read": "true",
+        "create": "true",
+        "update": "true",
+        "delete": "true"
       }
     },
     {
@@ -123,39 +127,18 @@
       "documentId": "auto-generated",
       "fields": [
         { "name": "id", "type": "string" },
-        { "name": "documentNumber", "type": "string" },
+        { "name": "sphNumber", "type": "string" },
         { "name": "hospitalName", "type": "string" },
         { "name": "date", "type": "string" },
+        { "name": "grandTotal", "type": "number" },
         { "name": "status", "type": "string" },
-        { "name": "pdfUrl", "type": "string", "description": "URL to uploaded PDF" },
-        { "name": "createdAt", "type": "timestamp" },
-        { "name": "updatedAt", "type": "timestamp" }
+        { "name": "pdfUrl", "type": "string" }
       ],
       "rules": {
-        "read": "request.auth != null",
-        "create": "request.auth != null",
-        "update": "request.auth != null",
-        "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
-      }
-    },
-    {
-      "name": "spkDocuments",
-      "documentId": "auto-generated",
-      "fields": [
-        { "name": "id", "type": "string" },
-        { "name": "documentNumber", "type": "string" },
-        { "name": "hospitalName", "type": "string" },
-        { "name": "date", "type": "string" },
-        { "name": "status", "type": "string" },
-        { "name": "pdfUrl", "type": "string", "description": "URL to uploaded PDF" },
-        { "name": "createdAt", "type": "timestamp" },
-        { "name": "updatedAt", "type": "timestamp" }
-      ],
-      "rules": {
-        "read": "request.auth != null",
-        "create": "request.auth != null",
-        "update": "request.auth != null",
-        "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+        "read": "true",
+        "create": "true",
+        "update": "true",
+        "delete": "true"
       }
     },
     {
@@ -169,15 +152,13 @@
         { "name": "status", "type": "string" },
         { "name": "bankName", "type": "string" },
         { "name": "accountNumber", "type": "string" },
-        { "name": "notes", "type": "string" },
-        { "name": "createdAt", "type": "timestamp" },
-        { "name": "updatedAt", "type": "timestamp" }
+        { "name": "notes", "type": "string" }
       ],
       "rules": {
-        "read": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
-        "create": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
-        "update": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
-        "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+        "read": "true",
+        "create": "true",
+        "update": "true",
+        "delete": "true"
       }
     },
     {
@@ -193,18 +174,104 @@
         { "name": "description", "type": "string" },
         { "name": "relatedHospitalName", "type": "string" },
         { "name": "marketingName", "type": "string" },
-        { "name": "auditStatus", "type": "string" },
-        { "name": "auditorName", "type": "string" },
-        { "name": "auditNotes", "type": "string" },
-        { "name": "auditedAt", "type": "string" },
-        { "name": "createdAt", "type": "timestamp" },
-        { "name": "updatedAt", "type": "timestamp" }
+        { "name": "auditStatus", "type": "string" }
       ],
       "rules": {
-        "read": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
-        "create": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
-        "update": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'",
-        "delete": "request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'"
+        "read": "true",
+        "create": "true",
+        "update": "true",
+        "delete": "true"
+      }
+    },
+    {
+      "name": "hospitals",
+      "documentId": "auto-generated",
+      "fields": [
+        { "name": "id", "type": "string" },
+        { "name": "name", "type": "string" },
+        { "name": "type", "type": "string" },
+        { "name": "address", "type": "string" },
+        { "name": "city", "type": "string" },
+        { "name": "picName", "type": "string" },
+        { "name": "picPhone", "type": "string" }
+      ],
+      "rules": {
+        "read": "true",
+        "create": "true",
+        "update": "true",
+        "delete": "true"
+      }
+    },
+    {
+      "name": "technicians",
+      "documentId": "auto-generated",
+      "fields": [
+        { "name": "id", "type": "string" },
+        { "name": "name", "type": "string" },
+        { "name": "title", "type": "string" },
+        { "name": "strNumber", "type": "string" },
+        { "name": "specialization", "type": "string" },
+        { "name": "status", "type": "string" }
+      ],
+      "rules": {
+        "read": "true",
+        "create": "true",
+        "update": "true",
+        "delete": "true"
+      }
+    },
+    {
+      "name": "marketingStaff",
+      "documentId": "auto-generated",
+      "fields": [
+        { "name": "id", "type": "string" },
+        { "name": "name", "type": "string" },
+        { "name": "title", "type": "string" },
+        { "name": "phone", "type": "string" },
+        { "name": "email", "type": "string" },
+        { "name": "status", "type": "string" }
+      ],
+      "rules": {
+        "read": "true",
+        "create": "true",
+        "update": "true",
+        "delete": "true"
+      }
+    },
+    {
+      "name": "settings",
+      "documentId": "string",
+      "fields": [
+        { "name": "id", "type": "string" }
+      ],
+      "rules": {
+        "read": "true",
+        "create": "true",
+        "update": "true",
+        "delete": "true"
+      }
+    },
+    {
+      "name": "bapDocuments",
+      "documentId": "auto-generated",
+      "fields": [
+        { "name": "id", "type": "string" },
+        { "name": "sphId", "type": "string" },
+        { "name": "sphNumber", "type": "string" },
+        { "name": "customerName", "type": "string" },
+        { "name": "poDate", "type": "string" },
+        { "name": "address", "type": "string" },
+        { "name": "cityDistrict", "type": "string" },
+        { "name": "labelNumber", "type": "string" },
+        { "name": "bastpNumber", "type": "string" },
+        { "name": "createdAt", "type": "string" },
+        { "name": "updatedAt", "type": "string" }
+      ],
+      "rules": {
+        "read": "true",
+        "create": "true",
+        "update": "true",
+        "delete": "true"
       }
     }
   ]

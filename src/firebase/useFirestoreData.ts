@@ -3,6 +3,35 @@ import { collection, onSnapshot, doc, setDoc, deleteDoc, getDocs, writeBatch } f
 import { db } from './config';
 import { useAuth } from './AuthContext';
 
+/**
+ * Recursively strips keys with `undefined` values from an object or array.
+ * Firestore setDoc / updateDoc rejects any object containing `undefined` with:
+ * "Function setDoc() called with invalid data. Unsupported field value: undefined"
+ */
+export function sanitizeForFirestore<T>(val: T): T {
+  if (val === undefined) {
+    return null as any;
+  }
+  if (val === null || typeof val !== 'object') {
+    return val;
+  }
+  if (val instanceof Date) {
+    return val;
+  }
+  if (Array.isArray(val)) {
+    return val
+      .filter(item => item !== undefined)
+      .map(item => sanitizeForFirestore(item)) as any;
+  }
+  const cleaned: Record<string, any> = {};
+  for (const [key, value] of Object.entries(val)) {
+    if (value !== undefined) {
+      cleaned[key] = sanitizeForFirestore(value);
+    }
+  }
+  return cleaned as T;
+}
+
 export function useFirestoreData<T extends { id: string }>(collectionName: string) {
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -34,7 +63,8 @@ export function useFirestoreData<T extends { id: string }>(collectionName: strin
     setData(prev => [item, ...prev.filter(i => i.id !== item.id)]);
     if (!user) return;
     try {
-      await setDoc(doc(db, collectionName, item.id), item);
+      const sanitized = sanitizeForFirestore(item);
+      await setDoc(doc(db, collectionName, item.id), sanitized);
     } catch (e) {
       console.error(`Error adding to ${collectionName}:`, e);
     }
@@ -45,7 +75,8 @@ export function useFirestoreData<T extends { id: string }>(collectionName: strin
     setData(prev => prev.map(i => i.id === item.id ? item : i));
     if (!user) return;
     try {
-      await setDoc(doc(db, collectionName, item.id), item, { merge: true });
+      const sanitized = sanitizeForFirestore(item);
+      await setDoc(doc(db, collectionName, item.id), sanitized, { merge: true });
     } catch (e) {
       console.error(`Error updating ${collectionName}:`, e);
     }

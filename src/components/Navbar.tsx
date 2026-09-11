@@ -17,7 +17,8 @@ import {
   Trash2,
   ShieldCheck,
   Award,
-  User
+  User,
+  FileCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CalibrationSchedule, CalibratorAsset } from '../types';
@@ -26,7 +27,7 @@ import { CompanyLogo } from './CompanyLogo';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 import { useAuth } from '../firebase/AuthContext';
 
-export type AppTab = 'dashboard' | 'sph' | 'schedules' | 'calibrators' | 'tablets' | 'financial' | 'masters' | 'templates';
+export type AppTab = 'dashboard' | 'sph' | 'schedules' | 'selia' | 'calibrators' | 'tablets' | 'financial' | 'masters' | 'templates';
 
 interface NavbarProps {
   activeTab: AppTab;
@@ -77,8 +78,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   }).length;
 
   const expiringCalibratorsCount = calibrators.filter(c => c.condition === 'Perlu Kalibrasi Ulang').length;
+  const completedSchedulesCount = schedules.filter(s => 
+    s.status === 'Selesai Kalibrasi' || 
+    s.status === 'Sertifikat Terbit' || 
+    s.progressPercent === 100 ||
+    Boolean(s.completedDate)
+  ).length;
 
-  // Define 3 clean, categorized Slide Groups containing all 8 modules
+  // Define 3 clean, categorized Slide Groups containing all modules
   const slideGroups: SlideGroup[] = [
     {
       id: 1,
@@ -107,6 +114,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           icon: Calendar,
           badgeVal: schedules.length,
           badgeColor: 'bg-emerald-950 text-emerald-300 border-emerald-500/40'
+        },
+        {
+          id: 'selia',
+          label: 'Selia Dashboard',
+          sublabel: 'Proses & Cetak Sertifikat',
+          icon: FileCheck,
+          badgeVal: completedSchedulesCount > 0 ? `${completedSchedulesCount} Selesai` : undefined,
+          badgeColor: 'bg-teal-950 text-teal-300 border-teal-500/40'
         }
       ]
     },
@@ -166,7 +181,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   // Determine current slide index based on activeTab
   const getSlideIndexForTab = (tab: AppTab): number => {
-    if (tab === 'dashboard' || tab === 'sph' || tab === 'schedules') return 0;
+    if (tab === 'dashboard' || tab === 'sph' || tab === 'schedules' || tab === 'selia') return 0;
     if (tab === 'calibrators' || tab === 'tablets') return 1;
     return 2;
   };

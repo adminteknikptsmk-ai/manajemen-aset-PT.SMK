@@ -121,7 +121,15 @@ export function exportHtmlToWord({ title, filename, bodyHtml }: WordDocumentOpti
 }
 
 // Letterhead HTML string for Word documents
-export function getWordKopSuratHtml(titleText: string = 'Laboratorium Kalibrasi') {
+export function getWordKopSuratHtml(titleText: string = 'Laboratorium Kalibrasi', customLetterheadSrc?: string | null) {
+  if (customLetterheadSrc && (customLetterheadSrc.startsWith('data:image/') || customLetterheadSrc.startsWith('http'))) {
+    return `
+      <div style="text-align: center; margin-bottom: 16px; width: 100%;">
+        <img src="${customLetterheadSrc}" alt="Kop Surat Resmi" style="width: 100%; max-height: 125px; object-fit: contain;" />
+      </div>
+    `;
+  }
+
   return `
     <table class="kop-table no-border" style="width: 100%; margin-bottom: 16px;">
       <tr>

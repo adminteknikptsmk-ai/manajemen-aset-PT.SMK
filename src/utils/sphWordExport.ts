@@ -3,8 +3,12 @@ import { exportHtmlToWord, getWordKopSuratHtml, getWordFooterHtml } from './word
 import { formatNumber } from './sphHelpers';
 import { formatIndonesianDate } from './helpers';
 
-export function exportSphToWord(sph: SphQuotation, mode: 'ALL' | '1' | '2' = 'ALL') {
-  const kopHtml = getWordKopSuratHtml('Laboratorium Kalibrasi');
+export function exportSphToWord(
+  sph: SphQuotation, 
+  mode: 'ALL' | '1' | '2' = 'ALL',
+  customLetterheadSrc?: string | null
+) {
+  const kopHtml = getWordKopSuratHtml('Laboratorium Kalibrasi', customLetterheadSrc);
   const footerHtml = getWordFooterHtml();
   const dateStr = formatIndonesianDate(sph.date);
   const totalUnits = sph.items.reduce((acc, i) => acc + (Number(i.quantity) || 1), 0);

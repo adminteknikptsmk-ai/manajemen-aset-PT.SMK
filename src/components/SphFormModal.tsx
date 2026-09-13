@@ -171,8 +171,8 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
       setDirectorName('Ahmad Fajar Ariyanto');
       setDirectorTitle('Direktur');
 
-      // Add default sample items (20 items matching official SPH)
-      setItems(OFFICIAL_SAMPLE_ITEMS);
+      // Start with empty items list for custom entry
+      setItems([]);
     }
   }, [initialSph, isOpen, existingSphCount]);
 
@@ -912,15 +912,6 @@ export const SphFormModal: React.FC<SphFormModalProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleLoadOfficialSample}
-                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
-                  title="Muat 20 alat kesehatan sesuai dokumen SPH contoh resmi"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Muat Contoh 20 Alat Resmi</span>
-                </button>
                 <button
                   type="button"
                   onClick={() => setShowCatalogModal(true)}

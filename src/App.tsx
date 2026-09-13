@@ -43,11 +43,20 @@ import { BapModal } from './components/BapModal';
 import { createBapFromSph } from './utils/bapHelpers';
 
 export default function App() {
-  const { user, isAdmin, logout } = useAuth();
+  const { user, isAdmin, role, logout } = useAuth();
   
   // Navigation State
   const [activeTab, setActiveTab] = useState<'dashboard' | 'sph' | 'schedules' | 'selia' | 'calibrators' | 'tablets' | 'financial' | 'masters' | 'templates'>('dashboard');
   const [slideDirection, setSlideDirection] = useState<number>(1);
+
+  // Auto-redirect to default permitted tab if current activeTab is restricted for the logged-in role
+  useEffect(() => {
+    if (role === 'admin_keuangan' && !['sph', 'schedules', 'financial', 'masters'].includes(activeTab)) {
+      setActiveTab('sph');
+    } else if (role === 'admin_teknik' && !['schedules', 'selia', 'calibrators', 'tablets', 'masters'].includes(activeTab)) {
+      setActiveTab('selia');
+    }
+  }, [role, activeTab]);
 
   const handleSelectCoreSlide = (newTab: 'dashboard' | 'sph' | 'schedules' | 'selia') => {
     const order: Record<string, number> = { dashboard: 0, sph: 1, schedules: 2, selia: 3 };
@@ -227,20 +236,20 @@ export default function App() {
       hospitalCity: sph.city || 'Surakarta',
       hospitalPic: sph.hospitalPic || 'Ka. IPSRS',
       hospitalPhone: sph.hospitalPhone || '0812-3456-7890',
-      scheduledDate: new Date().toISOString().split('T')[0],
-      endDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      leadTechnicianId: technicians[0]?.id || 'TECH-001',
-      leadTechnicianName: technicians[0]?.name || 'Shifa Zalza Billa',
-      supportTechnicianIds: [technicians[1]?.id || 'TECH-002'],
-      supportTechnicianNames: [technicians[1]?.name || 'Sheva Maresca Pramuningtyas'],
-      marketingName: sph.marketingStaffName || 'Erwin',
+      scheduledDate: '',
+      endDate: '',
+      leadTechnicianId: '',
+      leadTechnicianName: '',
+      supportTechnicianIds: [],
+      supportTechnicianNames: [],
+      marketingName: sph.marketingStaffName || '',
       labelStart: labelRange.startLabel,
       labelEnd: labelRange.endLabel,
       labelRange: labelRange.displayRange,
       labelSequenceStart: 1,
       targetDevices: targetDevicesWithLabels,
-      assignedCalibratorIds: ['CAL-001', 'CAL-002'],
-      assignedCalibratorNames: ['Fluke ESA620 Electrical Safety', 'Fluke ProSim 8 Vital Signs'],
+      assignedCalibratorIds: [],
+      assignedCalibratorNames: [],
       priority: 'Tinggi',
       status: 'Dijadwalkan',
       estimatedHours: 16,
@@ -310,24 +319,24 @@ export default function App() {
       hospitalCity: sph.city || 'Surakarta',
       hospitalPic: sph.hospitalPic || 'Ka. IPSRS',
       hospitalPhone: sph.hospitalPhone || '0812-3456-7890',
-      scheduledDate: new Date().toISOString().split('T')[0],
-      endDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      leadTechnicianId: technicians[0]?.id || 'TECH-001',
-      leadTechnicianName: technicians[0]?.name || 'Shifa Zalza Billa',
-      supportTechnicianIds: [technicians[1]?.id || 'TECH-002'],
-      supportTechnicianNames: [technicians[1]?.name || 'Sheva Maresca Pramuningtyas'],
+      scheduledDate: '',
+      endDate: '',
+      leadTechnicianId: '',
+      leadTechnicianName: '',
+      supportTechnicianIds: [],
+      supportTechnicianNames: [],
       targetDevices: sph.items.map((it, idx) => ({
         id: `dev-${idx + 1}-${Date.now()}`,
         name: it.description,
         quantity: it.quantity,
-        room: 'Ruang Kalibrasi Medis RS',
+        room: '',
         brandModel: '-',
         serialNumber: '-',
         status: 'Pending',
         notes: it.notes || ''
       })),
-      assignedCalibratorIds: ['CAL-001', 'CAL-002'],
-      assignedCalibratorNames: ['Fluke ESA620 Electrical Safety', 'Fluke ProSim 8 Vital Signs'],
+      assignedCalibratorIds: [],
+      assignedCalibratorNames: [],
       priority: 'Tinggi',
       status: 'Dijadwalkan',
       estimatedHours: 16,

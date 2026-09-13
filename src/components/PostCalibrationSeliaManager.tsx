@@ -449,108 +449,107 @@ const PerHospitalSeliaView: React.FC<PerHospitalSeliaViewProps> = ({
           <div>
             <h3 className="font-bold text-white text-sm flex items-center gap-2">
               <Award className="w-4 h-4 text-cyan-400" />
-              Tabel Perkembangan Selia & Sertifikat Alat Medis (Rincian Unit 1-per-1)
+              Tabel Perkembangan Selia & Sertifikat Alat Medis (Rincian Unit Per RS)
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Setiap unit alat medis disajikan secara terpisah untuk update status selia dan catatan keterangan individual.
+              Isian tabel khusus menampilkan No. Label, Status Selia Individual, dan Catatan Alat.
             </p>
           </div>
 
           <span className="text-xs font-mono font-bold text-cyan-400 bg-cyan-950/60 border border-cyan-500/30 px-3 py-1 rounded-lg">
-            Menampilkan {filteredItems.length} dari {totalUnits} Unit
+            Menampilkan {filteredItems.length} dari {totalUnits} Label
           </span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-200">
             <thead>
-              <tr className="bg-slate-950 text-slate-400 border-b border-slate-800 font-semibold text-[11px] uppercase tracking-wider">
+              <tr className="bg-slate-950 text-slate-400 border-b border-slate-800 font-bold text-[11px] uppercase tracking-wider">
                 <th className="py-3 px-3 text-center w-12">No</th>
-                <th className="py-3 px-4">Nama Alat Medis (Rincian Unit)</th>
-                <th className="py-3 px-3">Merk / Model & No. Seri</th>
-                <th className="py-3 px-3 text-center">No. Label Kalibrasi</th>
-                <th className="py-3 px-3">Ruang / Lokasi</th>
-                <th className="py-3 px-3 text-center">Hasil Uji Lapangan</th>
-                <th className="py-3 px-3 w-48">Status Proses Selia & Cetak</th>
-                <th className="py-3 px-4 text-left min-w-[200px]">Keterangan (Catatan Bebas)</th>
+                <th className="py-3 px-4 text-center w-48">No. Label</th>
+                <th className="py-3 px-4 text-center min-w-[280px]">Status Selia Individual</th>
+                <th className="py-3 px-4 text-left">Catatan / Keterangan Alat</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 bg-slate-900">
               {filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-500">
-                    Tidak ditemukan data unit alat medis yang sesuai dengan pencarian.
+                  <td colSpan={4} className="py-8 text-center text-slate-500">
+                    Tidak ditemukan data label alat medis yang sesuai dengan pencarian.
                   </td>
                 </tr>
               ) : (
                 filteredItems.map((item, idx) => {
+                  const isBelum = item.seliaStatus === 'Belum Diselia';
+                  const isProses = item.seliaStatus === 'Sedang Proses Selia';
+                  const isCetak = item.seliaStatus === 'Sudah Cetak Sertifikat';
+
                   return (
                     <tr key={item.id} className="hover:bg-slate-800/50 transition-colors">
                       {/* No */}
                       <td className="py-3 px-3 text-center font-bold font-mono text-cyan-400/90 text-xs">
-                        {item.unitNo || idx + 1}
-                      </td>
-
-                      {/* Nama Alat */}
-                      <td className="py-3 px-4">
-                        <div className="font-bold text-white text-xs">
-                          {item.unitTitle || item.deviceName}
-                        </div>
-                        <span className="text-[10px] text-slate-400 block mt-0.5">
-                          {item.deviceName}
-                        </span>
-                      </td>
-
-                      {/* Merk & Serial Number */}
-                      <td className="py-3 px-3">
-                        <span className="font-semibold text-slate-300 block">{item.brandModel || '-'}</span>
-                        <span className="text-[10px] text-slate-500 font-mono block">SN: {item.serialNumber || '-'}</span>
+                        {idx + 1}
                       </td>
 
                       {/* No. Label */}
-                      <td className="py-3 px-3 text-center">
-                        <span className="font-mono text-xs font-bold text-amber-300 bg-amber-950/40 px-2.5 py-1 rounded-md border border-amber-500/30 inline-block">
+                      <td className="py-3 px-4 text-center">
+                        <span 
+                          title={item.unitTitle || item.deviceName}
+                          className="font-mono text-sm font-black text-amber-300 bg-amber-950/50 px-3 py-1 rounded-lg border border-amber-500/40 inline-block shadow-xs tracking-wider"
+                        >
                           {item.labelNumber || '-'}
                         </span>
                       </td>
 
-                      {/* Ruang */}
-                      <td className="py-3 px-3 text-slate-300 font-medium">
-                        {item.room || 'Layanan RS'}
-                      </td>
+                      {/* Status Selia Individual Buttons */}
+                      <td className="py-3 px-4 text-center">
+                        <div className="inline-flex p-1 bg-slate-950 rounded-xl border border-slate-800 gap-1 w-full max-w-xs">
+                          <button
+                            onClick={() => handleSeliaStatusChange(item.id, 'Belum Diselia')}
+                            className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+                              isBelum
+                                ? 'bg-amber-500 text-slate-950 shadow-md ring-1 ring-amber-400'
+                                : 'text-slate-400 hover:text-amber-300 hover:bg-slate-900'
+                            }`}
+                            title="Tandai Belum Selia"
+                          >
+                            <Clock className="w-3 h-3" />
+                            <span>Belum Selia</span>
+                          </button>
 
-                      {/* Hasil Uji Lapangan */}
-                      <td className="py-3 px-3 text-center">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                          <Check className="w-3 h-3 text-emerald-400" />
-                          <span>Laik Pakai / Sudah Lulus Kalibrasi</span>
-                        </span>
-                      </td>
+                          <button
+                            onClick={() => handleSeliaStatusChange(item.id, 'Sedang Proses Selia')}
+                            className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+                              isProses
+                                ? 'bg-cyan-500 text-slate-950 shadow-md ring-1 ring-cyan-400'
+                                : 'text-slate-400 hover:text-cyan-300 hover:bg-slate-900'
+                            }`}
+                            title="Tandai Proses Selia"
+                          >
+                            <SlidersHorizontal className="w-3 h-3" />
+                            <span>Proses Selia</span>
+                          </button>
 
-                      {/* Status Selia & Cetak Dropdown */}
-                      <td className="py-3 px-3">
-                        <select
-                          value={item.seliaStatus}
-                          onChange={(e) => handleSeliaStatusChange(item.id, e.target.value as SeliaStatus)}
-                          className={`w-full text-xs font-bold px-2.5 py-1.5 rounded-xl border focus:outline-none transition-all ${
-                            item.seliaStatus === 'Sudah Cetak Sertifikat'
-                              ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50 focus:border-emerald-400'
-                              : item.seliaStatus === 'Sedang Proses Selia'
-                              ? 'bg-cyan-950/80 text-cyan-300 border-cyan-500/50 focus:border-cyan-400'
-                              : 'bg-amber-950/80 text-amber-300 border-amber-500/50 focus:border-amber-400'
-                          }`}
-                        >
-                          <option value="Belum Diselia">Belum Diselia</option>
-                          <option value="Sedang Proses Selia">Sedang Proses Selia</option>
-                          <option value="Sudah Cetak Sertifikat">Sudah Cetak Sertifikat</option>
-                        </select>
+                          <button
+                            onClick={() => handleSeliaStatusChange(item.id, 'Sudah Cetak Sertifikat')}
+                            className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+                              isCetak
+                                ? 'bg-emerald-500 text-slate-950 shadow-md ring-1 ring-emerald-400'
+                                : 'text-slate-400 hover:text-emerald-300 hover:bg-slate-900'
+                            }`}
+                            title="Tandai Cetak Sertifikat"
+                          >
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>Cetak Sertifikat</span>
+                          </button>
+                        </div>
                       </td>
 
                       {/* Keterangan Free Text Input Column */}
                       <td className="py-3 px-4">
                         <input
                           type="text"
-                          placeholder="Ketik keterangan bebas..."
+                          placeholder="Ketik catatan/keterangan..."
                           value={item.keterangan || ''}
                           onChange={(e) => handleKeteranganChange(item.id, e.target.value)}
                           className="w-full bg-slate-950/90 border border-slate-700/80 focus:border-cyan-400 text-white rounded-xl px-3 py-1.5 text-xs placeholder-slate-500 focus:outline-none shadow-inner"

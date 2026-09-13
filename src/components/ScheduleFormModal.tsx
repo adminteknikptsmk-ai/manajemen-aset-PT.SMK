@@ -69,56 +69,46 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
     activeDevicesCount: 32
   };
 
-  const [hospitalId, setHospitalId] = useState(initialData?.hospitalId || defaultHospital.id);
+  const [hospitalId, setHospitalId] = useState(initialData?.hospitalId || '');
   const selectedHospitalObj = useMemo(() => {
-    return hospitals.find(h => h.id === hospitalId) || defaultHospital;
-  }, [hospitals, hospitalId, defaultHospital]);
+    return hospitals.find(h => h.id === hospitalId);
+  }, [hospitals, hospitalId]);
 
   // 7-Digit Calibration Label System States
   // Format: 3-Digit Hospital Code (>= 100) + 4-Digit Sequence (e.g. 1000001, 1000102, 1001879)
-  const initialHospCode = initialData?.hospitalCode || getHospitalCode(hospitalId, hospitals);
-  const [hospitalCode, setHospitalCode] = useState(initialHospCode || '100');
+  const initialHospCode = initialData?.hospitalCode || (hospitalId ? getHospitalCode(hospitalId, hospitals) : '');
+  const [hospitalCode, setHospitalCode] = useState(initialHospCode || '');
   const [startSequence, setStartSequence] = useState<number>(initialData?.labelSequenceStart || 1);
 
   // Form Fields
-  const [hospitalName, setHospitalName] = useState(initialData?.hospitalName || selectedHospitalObj.name || '');
-  const [hospitalAddress, setHospitalAddress] = useState(initialData?.hospitalAddress || selectedHospitalObj.address || '');
-  const [hospitalCity, setHospitalCity] = useState(initialData?.hospitalCity || selectedHospitalObj.city || '');
+  const [hospitalName, setHospitalName] = useState(initialData?.hospitalName || '');
+  const [hospitalAddress, setHospitalAddress] = useState(initialData?.hospitalAddress || '');
+  const [hospitalCity, setHospitalCity] = useState(initialData?.hospitalCity || '');
   
-  const [scheduledDate, setScheduledDate] = useState(initialData?.scheduledDate || TODAY_STR);
-  const [endDate, setEndDate] = useState(initialData?.endDate || TODAY_STR);
+  const [scheduledDate, setScheduledDate] = useState(initialData?.scheduledDate || '');
+  const [endDate, setEndDate] = useState(initialData?.endDate || '');
   
-  const defaultLead = technicians[0]?.id || '';
-  const [leadTechId, setLeadTechId] = useState(initialData?.leadTechnicianId || defaultLead);
+  const [leadTechId, setLeadTechId] = useState(initialData?.leadTechnicianId || '');
   const [selectedSupportIds, setSelectedSupportIds] = useState<string[]>(initialData?.supportTechnicianIds || []);
   const [selectedCalibratorIds, setSelectedCalibratorIds] = useState<string[]>(
-    initialData?.assignedCalibratorIds || (calibrators.slice(0, 3).map(c => c.id))
+    initialData?.assignedCalibratorIds || []
   );
 
-  const [contractValue, setContractValue] = useState(initialData ? String(initialData.contractValue) : '35000000');
-  const [notes, setNotes] = useState(initialData?.notes || 'Pelaksanaan uji dan kalibrasi alat kesehatan sesuai standar Kemenkes RI No. 54/2015.');
+  const [contractValue, setContractValue] = useState(initialData ? String(initialData.contractValue) : '');
+  const [notes, setNotes] = useState(initialData?.notes || '');
   
-  const defaultMkt = marketingList[0]?.name || 'Dimas Raditya, S.E.';
-  const [marketingName, setMarketingName] = useState(initialData?.marketingName || defaultMkt);
-  const [approvedByName, setApprovedByName] = useState(initialData?.approvedByName || 'Hafizh Pasifianto, S.Tr.T.');
-  const [approvedByRole, setApprovedByRole] = useState(initialData?.approvedByRole || 'Manajer Teknik PT. Sarana Multi Kalibrasi');
+  const [marketingName, setMarketingName] = useState(initialData?.marketingName || '');
+  const [approvedByName, setApprovedByName] = useState(initialData?.approvedByName || '');
+  const [approvedByRole, setApprovedByRole] = useState(initialData?.approvedByRole || '');
   
-  const [workOrderNumber, setWorkOrderNumber] = useState(
-    initialData?.workOrderNumber || `BO/SMK/2026/08/${String(100 + Math.floor(Math.random() * 900))}`
-  );
-  const [bapNumber, setBapNumber] = useState(initialData?.bapNumber || '021/SMK/BAP/VIII/2026');
-  const [poContractNumber, setPoContractNumber] = useState(
-    initialData?.poContractNumber || `PO-${selectedHospitalObj.name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase()}-2026`
-  );
-  const [poDate, setPoDate] = useState(initialData?.poDate || TODAY_STR);
+  const [workOrderNumber, setWorkOrderNumber] = useState(initialData?.workOrderNumber || '');
+  const [bapNumber, setBapNumber] = useState(initialData?.bapNumber || '');
+  const [poContractNumber, setPoContractNumber] = useState(initialData?.poContractNumber || '');
+  const [poDate, setPoDate] = useState(initialData?.poDate || '');
 
   // Medical devices list with quantity
   const [devices, setDevices] = useState<MedicalDeviceToCalibrate[]>(
-    initialData?.targetDevices || [
-      { id: 'dev-1', name: 'Ventilator ICU Adult & Pediatric', quantity: 4, room: '', brandModel: '', serialNumber: '', status: 'Pending' },
-      { id: 'dev-2', name: 'Defibrillator Biphasic & Pacer', quantity: 2, room: '', brandModel: '', serialNumber: '', status: 'Pending' },
-      { id: 'dev-3', name: 'Syringe Pump Micro & Macro', quantity: 8, room: '', brandModel: '', serialNumber: '', status: 'Pending' }
-    ]
+    initialData?.targetDevices || []
   );
 
   // Auto update hospital PIC defaults when hospital select changes

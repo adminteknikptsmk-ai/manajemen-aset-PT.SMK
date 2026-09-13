@@ -9,17 +9,19 @@ import {
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from './config';
 
+export type UserRole = 'admin_utama' | 'admin_teknik' | 'admin_keuangan';
+
 export interface AppUser {
   uid: string;
   email: string | null;
   displayName: string | null;
-  role?: 'admin_teknik' | 'admin_keuangan' | 'admin';
+  role?: UserRole;
 }
 
 interface AuthContextType {
   user: AppUser | User | null;
   isAdmin: boolean;
-  role: 'admin_teknik' | 'admin_keuangan' | 'admin';
+  role: UserRole;
   loading: boolean;
   login: (username?: string, password?: string) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -30,7 +32,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isAdmin: false,
-  role: 'admin_teknik',
+  role: 'admin_utama',
   loading: false,
   login: async () => false,
   logout: async () => {},
@@ -62,16 +64,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   });
 
-  const [role, setRole] = useState<'admin_teknik' | 'admin_keuangan' | 'admin'>(() => {
+  const [role, setRole] = useState<UserRole>(() => {
     try {
       const saved = localStorage.getItem('smk_auth_user');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.role) return parsed.role;
         if (parsed.email?.includes('keuangan')) return 'admin_keuangan';
+        if (parsed.email?.includes('utama')) return 'admin_utama';
       }
     } catch {}
-    return 'admin_teknik';
+    return 'admin_utama';
   });
 
   const [loading, setLoading] = useState<boolean>(false);
@@ -84,14 +87,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(currentUser);
         setIsAdmin(true);
         const email = currentUser.email?.toLowerCase() || '';
-        const userRole = email.includes('keuangan') ? 'admin_keuangan' : 'admin_teknik';
+        let userRole: UserRole = 'admin_utama';
+        if (email.includes('keuangan')) userRole = 'admin_keuangan';
+        else if (email.includes('teknik')) userRole = 'admin_teknik';
+
         setRole(userRole);
         
         try {
           const authData: AppUser = {
             uid: currentUser.uid,
             email: currentUser.email,
-            displayName: currentUser.displayName || (userRole === 'admin_keuangan' ? 'Admin Keuangan' : 'Admin Teknik'),
+            displayName: currentUser.displayName || (userRole === 'admin_utama' ? 'Admin Utama (PT. SMK)' : userRole === 'admin_keuangan' ? 'Admin Keuangan' : 'Admin Teknik'),
             role: userRole
           };
           localStorage.setItem('smk_auth_user', JSON.stringify(authData));
@@ -106,7 +112,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             await setDoc(userDocRef, {
               uid: currentUser.uid,
               email: currentUser.email,
-              displayName: currentUser.displayName || (userRole === 'admin_keuangan' ? 'Admin Keuangan' : 'Admin Teknik'),
+              displayName: currentUser.displayName || (userRole === 'admin_utama' ? 'Admin Utama (PT. SMK)' : userRole === 'admin_keuangan' ? 'Admin Keuangan' : 'Admin Teknik'),
               role: userRole,
               createdAt: new Date(),
               updatedAt: new Date()
@@ -125,21 +131,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null);
     setLoading(true);
 
-    const userClean = (username || '').trim().toLowerCase();
+    const userClean = (username || '').trim().toLowerCase().replace(/\s+/g, '');
     const passClean = (password || '').trim();
 
     // Check valid credentials for PT. SMK
-    const isAdminTeknik = (userClean === 'adminteknik' || userClean === 'admin') && 
+    const isAdminUtama = (userClean === 'adminutama' || userClean === 'admin_utama' || userClean === 'adminmaster' || userClean === 'admin') && 
       (passClean === 'smkjayajaya' || passClean === 'smk12345' || passClean === 'admin123');
     
     const isAdminKeuangan = userClean === 'adminkeuangan' && 
       (passClean === 'smkjayajaya' || passClean === 'keuangan123');
 
-    if (isAdminTeknik || isAdminKeuangan) {
-      const activeRole: 'admin_teknik' | 'admin_keuangan' = isAdminKeuangan ? 'admin_keuangan' : 'admin_teknik';
-      const email = isAdminKeuangan ? 'adminkeuangan@ptsmk.com' : 'adminteknik@ptsmk.com';
-      const displayName = isAdminKeuangan ? 'Admin Keuangan (PT. SMK)' : 'Admin Teknik (PT. SMK)';
-      const uid = isAdminKeuangan ? 'usr_adminkeuangan_002' : 'usr_adminteknik_001';
+    const isAdminTeknik = userClean === 'adminteknik' && 
+      (passClean === 'smkjayajaya' || passClean === 'smk12345' || passClean === 'admin123');
+
+    if (isAdminUtama || isAdminKeuangan || isAdminTeknik) {
+      let activeRole: UserRole = 'admin_utama';
+      let email = 'adminutama@ptsmk.com';
+      let displayName = 'Admin Utama (PT. SMK)';
+      let uid = 'usr_adminutama_000';
+
+      if (isAdminKeuangan) {
+        activeRole = 'admin_keuangan';
+        email = 'adminkeuangan@ptsmk.com';
+        displayName = 'Admin Keuangan (PT. SMK)';
+        uid = 'usr_adminkeuangan_002';
+      } else if (isAdminTeknik) {
+        activeRole = 'admin_teknik';
+        email = 'adminteknik@ptsmk.com';
+        displayName = 'Admin Teknik (PT. SMK)';
+        uid = 'usr_adminteknik_001';
+      }
 
       const localUser: AppUser = {
         uid,
@@ -176,7 +197,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Invalid credentials
     setLoading(false);
-    setError('Username atau password salah. Pastikan username "adminteknik" atau "adminkeuangan" dan password "smkjayajaya".');
+    setError('Username atau password salah. Username tersedia: "admin utama", "adminteknik", atau "adminkeuangan" dengan password "smkjayajaya".');
     return false;
   };
 

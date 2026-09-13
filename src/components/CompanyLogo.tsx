@@ -104,7 +104,7 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
   };
 
   const currentSize = sizeMap[size];
-  const defaultVectorLogo = '/smk-logo.svg';
+  const defaultVectorLogo = '/smk-logo.webp';
   const logoSource = customLogoUrl || defaultVectorLogo;
 
   return (

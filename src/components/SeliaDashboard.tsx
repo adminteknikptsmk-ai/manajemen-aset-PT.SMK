@@ -2,22 +2,18 @@ import React, { useState } from 'react';
 import { 
   CheckCircle2, 
   Clock, 
-  AlertCircle, 
   Search, 
   Building2, 
   FileCheck, 
-  Printer, 
   SlidersHorizontal, 
-  Filter, 
-  Award, 
-  Check, 
-  Sparkles,
-  FileText,
-  RefreshCw,
-  Tag
+  ArrowLeft,
+  ChevronRight,
+  Check,
+  Tag,
+  AlertCircle
 } from 'lucide-react';
 import { CalibrationSchedule, DeviceSeliaItem, SeliaStatus } from '../types';
-import { ensureDeviceSeliaItems, formatIndonesianDate, TODAY_STR } from '../utils/helpers';
+import { ensureDeviceSeliaItems, TODAY_STR } from '../utils/helpers';
 
 interface SeliaDashboardProps {
   schedules: CalibrationSchedule[];
@@ -28,85 +24,49 @@ export const SeliaDashboard: React.FC<SeliaDashboardProps> = ({
   schedules,
   onUpdateSchedule
 }) => {
-  // 1. Specifically filter schedules that have been marked 'Sudah Selesai Kalibrasi' (or 'Sertifikat Terbit')
+  // Completed / eligible schedules for Selia
   const completedSchedules = schedules.filter(s => 
     s.status === 'Selesai Kalibrasi' || 
     s.status === 'Sertifikat Terbit' || 
     s.progressPercent === 100 ||
-    !!s.completedDate
+    !!s.completedDate ||
+    (s.seliaItems && s.seliaItems.length > 0)
   );
 
-  const [selectedScheduleId, setSelectedScheduleId] = useState<string>('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
+  // Active view state: null = Stage 1 (Daftar RS), string = Stage 2 (Detail RS ID)
+  const [activeRSId, setActiveRSId] = useState<string | null>(null);
+
+  // Search queries
+  const [rsSearchQuery, setRsSearchQuery] = useState('');
+  const [labelSearchQuery, setLabelSearchQuery] = useState('');
   const [filterSeliaStatus, setFilterSeliaStatus] = useState<string>('all');
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
-
-  // If no schedules are marked 'Sudah Selesai Kalibrasi'
-  if (completedSchedules.length === 0) {
-    return (
-      <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl text-center text-slate-400 my-4 shadow-xl">
-        <div className="w-16 h-16 mx-auto bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center mb-4">
-          <Building2 className="w-8 h-8" />
-        </div>
-        <h3 className="text-lg font-bold text-white mb-1">Belum Ada Jadwal "Sudah Selesai Kalibrasi"</h3>
-        <p className="text-xs text-slate-400 max-w-lg mx-auto leading-relaxed">
-          Dashboard ini khusus menampilkan daftar alat medis dari jadwal pekerjaan yang telah ditandai <strong className="text-emerald-400">"Selesai Kalibrasi"</strong>. 
-          Silakan selesaikan kalibrasi pada menu <strong className="text-cyan-400">Penjadwalan RS</strong> terlebih dahulu.
-        </p>
-      </div>
-    );
-  }
-
-  // Determine active schedules to show tools from
-  const activeSchedules = selectedScheduleId === 'ALL'
-    ? completedSchedules
-    : completedSchedules.filter(s => s.id === selectedScheduleId);
-
-  // Aggregate all individual tools from selected completed schedule(s)
-  interface FlatToolItem {
-    item: DeviceSeliaItem;
-    schedule: CalibrationSchedule;
-  }
-
-  const allTools: FlatToolItem[] = [];
-  activeSchedules.forEach(schedule => {
-    const items = ensureDeviceSeliaItems(schedule);
-    items.forEach(item => {
-      allTools.push({ item, schedule });
-    });
-  });
-
-  // Filter tools by search query & selia status
-  const filteredTools = allTools.filter(({ item, schedule }) => {
-    const query = searchQuery.toLowerCase();
-    const matchesSearch = 
-      item.deviceName.toLowerCase().includes(query) ||
-      item.unitTitle.toLowerCase().includes(query) ||
-      item.brandModel.toLowerCase().includes(query) ||
-      item.serialNumber.toLowerCase().includes(query) ||
-      (item.labelNumber && item.labelNumber.toLowerCase().includes(query)) ||
-      (item.keterangan && item.keterangan.toLowerCase().includes(query)) ||
-      (item.room && item.room.toLowerCase().includes(query)) ||
-      schedule.hospitalName.toLowerCase().includes(query);
-
-    const matchesStatus = filterSeliaStatus === 'all' || item.seliaStatus === filterSeliaStatus;
-
-    return matchesSearch && matchesStatus;
-  });
-
-  // Key KPI metrics across selected completed schedules
-  const totalToolsCount = allTools.length;
-  const countBelum = allTools.filter(t => t.item.seliaStatus === 'Belum Diselia').length;
-  const countProses = allTools.filter(t => t.item.seliaStatus === 'Sedang Proses Selia').length;
-  const countCetak = allTools.filter(t => t.item.seliaStatus === 'Sudah Cetak Sertifikat').length;
-  const percentCetak = totalToolsCount > 0 ? Math.round((countCetak / totalToolsCount) * 100) : 0;
 
   const showToast = (msg: string) => {
     setSavedNotice(msg);
     setTimeout(() => setSavedNotice(null), 2500);
   };
 
-  // Helper to update a tool's status mapped to its specific parent schedule
+  // If no completed schedules available at all
+  if (completedSchedules.length === 0) {
+    return (
+      <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl text-center text-slate-400 my-4 shadow-xl">
+        <div className="w-16 h-16 mx-auto bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center mb-4">
+          <Building2 className="w-8 h-8" />
+        </div>
+        <h3 className="text-lg font-bold text-white mb-1">Belum Ada RS Selesai Kalibrasi</h3>
+        <p className="text-xs text-slate-400 max-w-lg mx-auto leading-relaxed">
+          Dashboard Selia khusus menampilkan daftar nomor label per Rumah Sakit yang telah ditandai <strong className="text-emerald-400">"Selesai Kalibrasi"</strong>. 
+          Silakan selesaikan kalibrasi pada menu <strong className="text-cyan-400">Penjadwalan RS</strong> terlebih dahulu.
+        </p>
+      </div>
+    );
+  }
+
+  // Active selected schedule for Stage 2
+  const activeSchedule = activeRSId ? completedSchedules.find(s => s.id === activeRSId) : null;
+
+  // Helper to update individual tool status for a specific schedule
   const handleToolStatusChange = (targetItem: DeviceSeliaItem, parentSchedule: CalibrationSchedule, newStatus: SeliaStatus) => {
     const scheduleItems = ensureDeviceSeliaItems(parentSchedule);
     const updatedItems = scheduleItems.map(i => {
@@ -129,10 +89,10 @@ export const SeliaDashboard: React.FC<SeliaDashboardProps> = ({
     };
 
     onUpdateSchedule(updatedSchedule);
-    showToast(`Status "${targetItem.unitTitle || targetItem.deviceName}" diubah ke "${newStatus}"`);
+    showToast(`Label "${targetItem.labelNumber || targetItem.unitTitle}" ➔ "${newStatus}"`);
   };
 
-  // Helper to update notes/keterangan mapped per individual tool
+  // Helper to update individual tool notes for a specific schedule
   const handleToolNotesChange = (targetItem: DeviceSeliaItem, parentSchedule: CalibrationSchedule, newNotes: string) => {
     const scheduleItems = ensureDeviceSeliaItems(parentSchedule);
     const updatedItems = scheduleItems.map(i => {
@@ -154,49 +114,372 @@ export const SeliaDashboard: React.FC<SeliaDashboardProps> = ({
     onUpdateSchedule(updatedSchedule);
   };
 
-  // Batch action: set filtered tools to status
-  const handleBatchSetStatus = (targetStatus: SeliaStatus) => {
-    if (filteredTools.length === 0) return;
+  // Batch update for an entire RS schedule
+  const handleBatchUpdateSchedule = (parentSchedule: CalibrationSchedule, targetStatus: SeliaStatus) => {
+    const scheduleItems = ensureDeviceSeliaItems(parentSchedule);
+    const updatedItems = scheduleItems.map(i => ({
+      ...i,
+      seliaStatus: targetStatus,
+      updatedAt: TODAY_STR
+    }));
 
-    // Group filtered tools by schedule ID
-    const scheduleMap = new Map<string, { schedule: CalibrationSchedule; itemIds: Set<string> }>();
-    filteredTools.forEach(({ item, schedule }) => {
-      if (!scheduleMap.has(schedule.id)) {
-        scheduleMap.set(schedule.id, { schedule, itemIds: new Set() });
-      }
-      scheduleMap.get(schedule.id)!.itemIds.add(item.id);
-    });
+    const isAllCetak = targetStatus === 'Sudah Cetak Sertifikat';
 
-    scheduleMap.forEach(({ schedule, itemIds }) => {
-      const scheduleItems = ensureDeviceSeliaItems(schedule);
-      const updatedItems = scheduleItems.map(i => {
-        if (itemIds.has(i.id)) {
-          return {
-            ...i,
-            seliaStatus: targetStatus,
-            updatedAt: TODAY_STR
-          };
-        }
-        return i;
-      });
+    const updatedSchedule: CalibrationSchedule = {
+      ...parentSchedule,
+      seliaItems: updatedItems,
+      status: isAllCetak ? 'Sertifikat Terbit' : 'Selesai Kalibrasi'
+    };
 
-      const isAllCetak = updatedItems.every(i => i.seliaStatus === 'Sudah Cetak Sertifikat');
-
-      const updatedSchedule: CalibrationSchedule = {
-        ...schedule,
-        seliaItems: updatedItems,
-        status: isAllCetak ? 'Sertifikat Terbit' : 'Selesai Kalibrasi'
-      };
-
-      onUpdateSchedule(updatedSchedule);
-    });
-
-    showToast(`${filteredTools.length} alat medis berhasil diperbarui ke status "${targetStatus}"`);
+    onUpdateSchedule(updatedSchedule);
+    showToast(`Semua label ${parentSchedule.hospitalName} diperbarui ke "${targetStatus}"`);
   };
+
+  // =========================================================
+  // STAGE 2: HALAMAN DETAIL MONITORING SELIA PER RUMAH SAKIT
+  // =========================================================
+  if (activeSchedule) {
+    const items = ensureDeviceSeliaItems(activeSchedule);
+    const totalRsItems = items.length;
+    const countRsBelum = items.filter(i => i.seliaStatus === 'Belum Diselia').length;
+    const countRsProses = items.filter(i => i.seliaStatus === 'Sedang Proses Selia').length;
+    const countRsCetak = items.filter(i => i.seliaStatus === 'Sudah Cetak Sertifikat').length;
+    const percentRsCetak = totalRsItems > 0 ? Math.round((countRsCetak / totalRsItems) * 100) : 0;
+
+    // Filter items by search & selia status
+    const filteredItems = items.filter(item => {
+      const query = labelSearchQuery.toLowerCase();
+      const matchesSearch = 
+        !query ||
+        (item.labelNumber && item.labelNumber.toLowerCase().includes(query)) ||
+        (item.keterangan && item.keterangan.toLowerCase().includes(query)) ||
+        (item.deviceName && item.deviceName.toLowerCase().includes(query)) ||
+        (item.unitTitle && item.unitTitle.toLowerCase().includes(query));
+
+      const matchesStatus = filterSeliaStatus === 'all' || item.seliaStatus === filterSeliaStatus;
+
+      return matchesSearch && matchesStatus;
+    });
+
+    const labelRangeText = activeSchedule.labelRange || (items.length > 0 ? `${items[0]?.labelNumber || '-'} s/d ${items[items.length - 1]?.labelNumber || '-'}` : '-');
+
+    return (
+      <div className="space-y-6">
+        {/* Toast Notification */}
+        {savedNotice && (
+          <div className="fixed bottom-5 right-5 bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-xl shadow-2xl z-50 flex items-center gap-2 text-xs border border-emerald-400 animate-bounce">
+            <CheckCircle2 className="w-4 h-4 text-white" />
+            <span>{savedNotice}</span>
+          </div>
+        )}
+
+        {/* Back Button Navigation */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => {
+              setActiveRSId(null);
+              setLabelSearchQuery('');
+              setFilterSeliaStatus('all');
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-cyan-400 hover:text-cyan-300 rounded-xl border border-slate-700/80 font-bold text-xs transition-all shadow-md group"
+          >
+            <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+            <span>Kembali ke Daftar Rumah Sakit</span>
+          </button>
+
+          <span className="text-xs font-mono text-slate-400">
+            Faskes ID: <strong className="text-white">{activeSchedule.hospitalName}</strong>
+          </span>
+        </div>
+
+        {/* Detail Header RS Banner */}
+        <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-950 p-5 rounded-2xl border border-slate-800 shadow-xl text-white">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+            <div className="flex items-start gap-3">
+              <div className="p-3 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 rounded-xl shrink-0 mt-0.5">
+                <Building2 className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide uppercase">
+                    {activeSchedule.hospitalName}
+                  </h2>
+                  <span className="font-mono text-xs text-cyan-300 bg-cyan-950 px-3 py-1 rounded-full border border-cyan-500/40 font-bold">
+                    {activeSchedule.workOrderNumber}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-300 mt-1.5">
+                  <span>No. Label: <strong className="text-amber-300 font-mono text-sm">{labelRangeText}</strong></span>
+                  <span>•</span>
+                  <span>Total: <strong className="text-white font-mono">{totalRsItems} Label Alat</strong></span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Batch Actions */}
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+              <button
+                onClick={() => handleBatchUpdateSchedule(activeSchedule, 'Sedang Proses Selia')}
+                className="bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/40 text-xs font-bold px-3 py-2 rounded-xl transition-all shadow-sm"
+              >
+                Proses Selia RS Ini
+              </button>
+              <button
+                onClick={() => handleBatchUpdateSchedule(activeSchedule, 'Sudah Cetak Sertifikat')}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/50 text-xs font-bold px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-md"
+              >
+                <Check className="w-4 h-4" />
+                <span>Cetak Sertifikat RS Ini</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 3 Monitoring Cards: Belum Selia, Proses Selia, Cetak Sertifikat */}
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Card 1: Belum Selia */}
+            <div 
+              onClick={() => setFilterSeliaStatus('Belum Diselia')}
+              className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                filterSeliaStatus === 'Belum Diselia' 
+                  ? 'bg-amber-950/80 border-amber-500/60 ring-1 ring-amber-400' 
+                  : 'bg-slate-950/60 border-slate-800 hover:border-amber-500/30'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-amber-400" />
+                  Belum Selia
+                </span>
+                <span className="font-mono text-lg font-black text-amber-300">{countRsBelum}</span>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">Label belum diperiksa supervisor</p>
+            </div>
+
+            {/* Card 2: Proses Selia */}
+            <div 
+              onClick={() => setFilterSeliaStatus('Sedang Proses Selia')}
+              className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                filterSeliaStatus === 'Sedang Proses Selia' 
+                  ? 'bg-cyan-950/80 border-cyan-500/60 ring-1 ring-cyan-400' 
+                  : 'bg-slate-950/60 border-slate-800 hover:border-cyan-500/30'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-cyan-300 flex items-center gap-1.5">
+                  <SlidersHorizontal className="w-4 h-4 text-cyan-400" />
+                  Proses Selia
+                </span>
+                <span className="font-mono text-lg font-black text-cyan-300">{countRsProses}</span>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">Sertifikat dalam tahap penyusunan</p>
+            </div>
+
+            {/* Card 3: Cetak Sertifikat */}
+            <div 
+              onClick={() => setFilterSeliaStatus('Sudah Cetak Sertifikat')}
+              className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                filterSeliaStatus === 'Sudah Cetak Sertifikat' 
+                  ? 'bg-emerald-950/80 border-emerald-500/60 ring-1 ring-emerald-400' 
+                  : 'bg-slate-950/60 border-slate-800 hover:border-emerald-500/30'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  Cetak Sertifikat
+                </span>
+                <span className="font-mono text-lg font-black text-emerald-400">{countRsCetak}</span>
+              </div>
+              <div className="w-full bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
+                <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${percentRsCetak}%` }}></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Search & Filter Toolbar */}
+        <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          {/* Label Search */}
+          <div className="relative w-full sm:w-80">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Cari No. Label atau Catatan Alat..."
+              value={labelSearchQuery}
+              onChange={(e) => setLabelSearchQuery(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+            />
+          </div>
+
+          {/* Status Tabs */}
+          <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl w-full sm:w-auto overflow-x-auto">
+            <button
+              onClick={() => setFilterSeliaStatus('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                filterSeliaStatus === 'all'
+                  ? 'bg-slate-800 text-white border border-slate-700'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Semua ({totalRsItems})
+            </button>
+            <button
+              onClick={() => setFilterSeliaStatus('Belum Diselia')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                filterSeliaStatus === 'Belum Diselia'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Belum Selia ({countRsBelum})
+            </button>
+            <button
+              onClick={() => setFilterSeliaStatus('Sedang Proses Selia')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                filterSeliaStatus === 'Sedang Proses Selia'
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Proses Selia ({countRsProses})
+            </button>
+            <button
+              onClick={() => setFilterSeliaStatus('Sudah Cetak Sertifikat')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                filterSeliaStatus === 'Sudah Cetak Sertifikat'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Cetak Sertifikat ({countRsCetak})
+            </button>
+          </div>
+        </div>
+
+        {/* SIMPLIFIED TABLE (NO. LABEL, STATUS SELIA INDIVIDUAL, CATATAN ONLY) */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-200">
+              <thead>
+                <tr className="bg-slate-950/90 text-slate-400 border-b border-slate-800 font-bold text-[11px] uppercase tracking-wider">
+                  <th className="py-3.5 px-3 text-center w-12">No</th>
+                  <th className="py-3.5 px-4 text-center w-48">No. Label</th>
+                  <th className="py-3.5 px-4 text-center min-w-[280px]">Status Selia Individual</th>
+                  <th className="py-3.5 px-4 text-left">Catatan / Keterangan Alat</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 bg-slate-900">
+                {filteredItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-10 text-center text-slate-500">
+                      Tidak ditemukan label yang cocok dengan kriteria pencarian.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredItems.map((item, idx) => {
+                    const isBelum = item.seliaStatus === 'Belum Diselia';
+                    const isProses = item.seliaStatus === 'Sedang Proses Selia';
+                    const isCetak = item.seliaStatus === 'Sudah Cetak Sertifikat';
+
+                    return (
+                      <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
+                        {/* No */}
+                        <td className="py-3 px-3 text-center font-bold font-mono text-cyan-400/90 text-xs">
+                          {idx + 1}
+                        </td>
+
+                        {/* No Label Only */}
+                        <td className="py-3 px-4 text-center">
+                          <span 
+                            title={item.unitTitle || item.deviceName}
+                            className="font-mono text-sm font-black text-amber-300 bg-amber-950/50 px-3.5 py-1 rounded-lg border border-amber-500/40 inline-block shadow-xs tracking-wider"
+                          >
+                            {item.labelNumber || '-'}
+                          </span>
+                        </td>
+
+                        {/* Status Selia Individual Toggle Buttons */}
+                        <td className="py-3 px-4 text-center">
+                          <div className="inline-flex p-1 bg-slate-950 rounded-xl border border-slate-800 gap-1 w-full max-w-xs">
+                            <button
+                              onClick={() => handleToolStatusChange(item, activeSchedule, 'Belum Diselia')}
+                              className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+                                isBelum
+                                  ? 'bg-amber-500 text-slate-950 shadow-md ring-1 ring-amber-400'
+                                  : 'text-slate-400 hover:text-amber-300 hover:bg-slate-900'
+                              }`}
+                            >
+                              <Clock className="w-3 h-3" />
+                              <span>Belum Selia</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleToolStatusChange(item, activeSchedule, 'Sedang Proses Selia')}
+                              className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+                                isProses
+                                  ? 'bg-cyan-500 text-slate-950 shadow-md ring-1 ring-cyan-400'
+                                  : 'text-slate-400 hover:text-cyan-300 hover:bg-slate-900'
+                              }`}
+                            >
+                              <SlidersHorizontal className="w-3 h-3" />
+                              <span>Proses Selia</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleToolStatusChange(item, activeSchedule, 'Sudah Cetak Sertifikat')}
+                              className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+                                isCetak
+                                  ? 'bg-emerald-500 text-slate-950 shadow-md ring-1 ring-emerald-400'
+                                  : 'text-slate-400 hover:text-emerald-300 hover:bg-slate-900'
+                              }`}
+                            >
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>Cetak Sertifikat</span>
+                            </button>
+                          </div>
+                        </td>
+
+                        {/* Catatan / Keterangan Alat */}
+                        <td className="py-3 px-4">
+                          <input
+                            type="text"
+                            placeholder="Tambahkan catatan alat..."
+                            value={item.keterangan || ''}
+                            onChange={(e) => handleToolNotesChange(item, activeSchedule, e.target.value)}
+                            className="w-full bg-slate-950/90 border border-slate-700/80 focus:border-cyan-400 text-white rounded-xl px-3 py-1.5 text-xs placeholder-slate-500 focus:outline-none shadow-inner"
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================
+  // STAGE 1: TAMPILAN AWAL DAFTAR RUMAH SAKIT & NO. LABEL
+  // =========================================================
+
+  // Filter completed schedules by initial search query
+  const filteredSchedules = completedSchedules.filter(sch => {
+    const q = rsSearchQuery.toLowerCase();
+    if (!q) return true;
+    const items = ensureDeviceSeliaItems(sch);
+    const labelMatch = items.some(i => i.labelNumber && i.labelNumber.toLowerCase().includes(q));
+    const rangeMatch = sch.labelRange && sch.labelRange.toLowerCase().includes(q);
+    const hospitalMatch = sch.hospitalName.toLowerCase().includes(q);
+    const spkMatch = sch.workOrderNumber.toLowerCase().includes(q);
+    return hospitalMatch || spkMatch || labelMatch || rangeMatch;
+  });
 
   return (
     <div className="space-y-6">
-      {/* Toast Saved Notification */}
+      {/* Toast Notification */}
       {savedNotice && (
         <div className="fixed bottom-5 right-5 bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-xl shadow-2xl z-50 flex items-center gap-2 text-xs border border-emerald-400 animate-bounce">
           <CheckCircle2 className="w-4 h-4 text-white" />
@@ -204,363 +487,138 @@ export const SeliaDashboard: React.FC<SeliaDashboardProps> = ({
         </div>
       )}
 
-      {/* Main Header Banner */}
+      {/* Main Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-950 p-5 rounded-2xl border border-slate-800 shadow-xl text-white">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-700/60">
+        <div className="flex items-center gap-3">
+          <span className="p-3 bg-cyan-500/20 text-cyan-400 rounded-2xl border border-cyan-500/30 shrink-0">
+            <Building2 className="w-7 h-7" />
+          </span>
           <div>
-            <div className="flex items-center gap-2.5">
-              <span className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
-                <FileCheck className="w-6 h-6" />
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg sm:text-xl font-bold text-white">
+                Selia Dashboard Per Rumah Sakit
+              </h2>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                {completedSchedules.length} RS Siap Diselia
               </span>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg sm:text-xl font-bold text-white">
-                    Dashboard Selia & Sertifikat Alat Medis
-                  </h2>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                    Filter: Selesai Kalibrasi
-                  </span>
-                </div>
-                <p className="text-xs text-slate-300 mt-0.5">
-                  Proses Selia, Pengesahan Manajer Teknik, dan Cetak Sertifikat dipetakan per individu unit alat medis.
-                </p>
-              </div>
             </div>
-          </div>
-
-          {/* Filter Dropdown RS / Work Order */}
-          <div className="flex items-center gap-2 bg-slate-950/90 p-2 rounded-xl border border-slate-700">
-            <Building2 className="w-4 h-4 text-cyan-400 shrink-0" />
-            <span className="text-xs font-semibold text-slate-400 shrink-0">Pilih Faskes / RS:</span>
-            <select
-              value={selectedScheduleId}
-              onChange={(e) => setSelectedScheduleId(e.target.value)}
-              className="bg-slate-900 text-cyan-300 font-bold text-xs px-3 py-1.5 rounded-lg border border-cyan-500/30 focus:outline-none focus:border-cyan-400 w-full max-w-xs cursor-pointer"
-            >
-              <option value="ALL">Semua RS Selesai Kalibrasi ({completedSchedules.length} RS)</option>
-              {completedSchedules.map((sch) => (
-                <option key={sch.id} value={sch.id}>
-                  {sch.hospitalName} ({sch.workOrderNumber})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Selected Scope Summary */}
-        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-            <span className="text-slate-400 block text-[10px]">Cakupan Faskes / RS</span>
-            <span className="font-bold text-white text-xs truncate block">
-              {selectedScheduleId === 'ALL' ? `Semua RS (${completedSchedules.length} RS)` : activeSchedules[0]?.hospitalName}
-            </span>
-            <span className="text-[10px] text-cyan-400 font-mono">
-              {selectedScheduleId === 'ALL' ? 'Total Selia Terintegrasi' : activeSchedules[0]?.workOrderNumber}
-            </span>
-          </div>
-
-          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-            <span className="text-slate-400 block text-[10px]">Total Unit Alat Medis</span>
-            <span className="font-bold text-amber-300 text-xs block font-mono">{totalToolsCount} Unit Alat</span>
-            <span className="text-[10px] text-slate-400">Terdaftar 1-per-1</span>
-          </div>
-
-          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-            <span className="text-slate-400 block text-[10px]">Progres Sertifikat Terbit</span>
-            <span className="font-bold text-emerald-400 text-xs block">{percentCetak}% Selesai</span>
-            <div className="w-full bg-slate-800 h-1.5 rounded-full mt-1 overflow-hidden">
-              <div className="bg-emerald-500 h-full transition-all duration-500" style={{ width: `${percentCetak}%` }}></div>
-            </div>
-          </div>
-
-          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-            <span className="text-slate-400 block text-[10px]">Manajer Teknik Penanggung Jawab</span>
-            <span className="font-bold text-cyan-300 text-xs block truncate">Hafizh Pasifianto, S.Tr.T.</span>
-            <span className="text-[10px] text-slate-400">Otorisasi LK-532-IDN</span>
+            <p className="text-xs text-slate-300 mt-0.5">
+              Pilih Rumah Sakit di bawah ini untuk mengelola monitoring <strong>Belum Selia</strong>, <strong>Proses Selia</strong>, dan <strong>Cetak Sertifikat</strong>.
+            </p>
           </div>
         </div>
       </div>
 
-      {/* KPI Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-        <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex items-center justify-between shadow-sm">
-          <div>
-            <span className="text-slate-400 text-xs block">Total Unit Dikalibrasi</span>
-            <span className="text-2xl font-extrabold text-white font-mono">{totalToolsCount}</span>
-            <span className="text-[10px] text-slate-400 block mt-0.5">Selia dipetakan per alat</span>
-          </div>
-          <div className="p-2.5 bg-slate-800 text-cyan-400 rounded-xl">
-            <Award className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex items-center justify-between shadow-sm">
-          <div>
-            <span className="text-slate-400 text-xs block">Belum Selia</span>
-            <span className="text-2xl font-extrabold text-amber-400 font-mono">{countBelum}</span>
-            <span className="text-[10px] text-amber-300/80 block mt-0.5">Menunggu peninjauan</span>
-          </div>
-          <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20">
-            <Clock className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex items-center justify-between shadow-sm">
-          <div>
-            <span className="text-slate-400 text-xs block">Proses Selia</span>
-            <span className="text-2xl font-extrabold text-cyan-400 font-mono">{countProses}</span>
-            <span className="text-[10px] text-cyan-300/80 block mt-0.5">Sedang diverifikasi MT</span>
-          </div>
-          <div className="p-2.5 bg-cyan-500/10 text-cyan-400 rounded-xl border border-cyan-500/20">
-            <SlidersHorizontal className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex items-center justify-between shadow-sm">
-          <div>
-            <span className="text-slate-400 text-xs block">Cetak Sertifikat</span>
-            <span className="text-2xl font-extrabold text-emerald-400 font-mono">{countCetak}</span>
-            <span className="text-[10px] text-emerald-300/80 block mt-0.5">{percentCetak}% Siap Diserahkan</span>
-          </div>
-          <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
-            <CheckCircle2 className="w-5 h-5" />
-          </div>
-        </div>
-      </div>
-
-      {/* Control Bar: Search, Status Filter & Batch Actions */}
-      <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-        {/* Search */}
-        <div className="relative w-full sm:w-80">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+      {/* Search Input Bar for RS List */}
+      <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex items-center justify-between gap-3 text-xs">
+        <div className="relative w-full max-w-md">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Cari alat, no. seri, label, ruang..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+            placeholder="Cari Nama Rumah Sakit, No. SPK, atau No. Label..."
+            value={rsSearchQuery}
+            onChange={(e) => setRsSearchQuery(e.target.value)}
+            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 shadow-inner"
           />
         </div>
 
-        {/* Status Filter Buttons */}
-        <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl w-full sm:w-auto overflow-x-auto">
-          <button
-            onClick={() => setFilterSeliaStatus('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              filterSeliaStatus === 'all'
-                ? 'bg-slate-800 text-white border border-slate-700'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Semua ({totalToolsCount})
-          </button>
-          <button
-            onClick={() => setFilterSeliaStatus('Belum Diselia')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              filterSeliaStatus === 'Belum Diselia'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Belum Selia ({countBelum})
-          </button>
-          <button
-            onClick={() => setFilterSeliaStatus('Sedang Proses Selia')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              filterSeliaStatus === 'Sedang Proses Selia'
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Proses Selia ({countProses})
-          </button>
-          <button
-            onClick={() => setFilterSeliaStatus('Sudah Cetak Sertifikat')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              filterSeliaStatus === 'Sudah Cetak Sertifikat'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Cetak Sertifikat ({countCetak})
-          </button>
-        </div>
-
-        {/* Batch Actions */}
-        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-          <button
-            onClick={() => handleBatchSetStatus('Sedang Proses Selia')}
-            className="bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/30 font-bold px-3 py-1.5 rounded-xl transition-all"
-          >
-            Set Terpilih: Proses Selia
-          </button>
-          <button
-            onClick={() => handleBatchSetStatus('Sudah Cetak Sertifikat')}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-xl shadow-sm transition-all flex items-center gap-1.5"
-          >
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Set Terpilih: Cetak Sertifikat</span>
-          </button>
-        </div>
+        <span className="text-xs text-slate-400 shrink-0 hidden sm:inline">
+          Menampilkan <strong className="text-cyan-400">{filteredSchedules.length}</strong> Faskes
+        </span>
       </div>
 
-      {/* Main Tools Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
-          <div>
-            <h3 className="font-bold text-white text-sm flex items-center gap-2">
-              <Award className="w-4.5 h-4.5 text-cyan-400" />
-              Daftar Alat Medis (Proses Selia & Sertifikat Individual)
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Klik tombol status ('Belum Selia', 'Proses Selia', 'Cetak Sertifikat') dan isi catatan langsung per individu unit alat.
-            </p>
-          </div>
+      {/* Grid of Hospital Cards (Initial Clean Overview) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {filteredSchedules.map((schedule) => {
+          const items = ensureDeviceSeliaItems(schedule);
+          const totalCount = items.length;
+          const countBelum = items.filter(i => i.seliaStatus === 'Belum Diselia').length;
+          const countProses = items.filter(i => i.seliaStatus === 'Sedang Proses Selia').length;
+          const countCetak = items.filter(i => i.seliaStatus === 'Sudah Cetak Sertifikat').length;
+          const percentCetak = totalCount > 0 ? Math.round((countCetak / totalCount) * 100) : 0;
 
-          <span className="text-xs font-mono font-bold text-cyan-400 bg-cyan-950/80 border border-cyan-500/30 px-3 py-1 rounded-lg">
-            Menampilkan {filteredTools.length} dari {totalToolsCount} Unit Alat
-          </span>
-        </div>
+          const labelRangeText = schedule.labelRange || (items.length > 0 ? `${items[0]?.labelNumber || '-'} s/d ${items[items.length - 1]?.labelNumber || '-'}` : '-');
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-200">
-            <thead>
-              <tr className="bg-slate-950 text-slate-400 border-b border-slate-800 font-semibold text-[11px] uppercase tracking-wider">
-                <th className="py-3.5 px-3 text-center w-12">No</th>
-                <th className="py-3.5 px-4">Nama Alat Medis & Faskes</th>
-                <th className="py-3.5 px-3">Merk / Model & No. Seri</th>
-                <th className="py-3.5 px-3 text-center">No. Label</th>
-                <th className="py-3.5 px-3">Ruang / Lokasi</th>
-                <th className="py-3.5 px-4 text-center min-w-[280px]">Status Selia Individual</th>
-                <th className="py-3.5 px-4 text-left min-w-[220px]">Catatan / Keterangan Alat</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60 bg-slate-900">
-              {filteredTools.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-500">
-                    <AlertCircle className="w-8 h-8 mx-auto text-slate-600 mb-2" />
-                    Tidak ditemukan data alat medis dari jadwal selesai kalibrasi.
-                  </td>
-                </tr>
-              ) : (
-                filteredTools.map(({ item, schedule }, idx) => {
-                  const isBelum = item.seliaStatus === 'Belum Diselia';
-                  const isProses = item.seliaStatus === 'Sedang Proses Selia';
-                  const isCetak = item.seliaStatus === 'Sudah Cetak Sertifikat';
+          return (
+            <div
+              key={schedule.id}
+              onClick={() => setActiveRSId(schedule.id)}
+              className="bg-slate-900 border border-slate-800 hover:border-cyan-500/60 p-5 rounded-2xl shadow-xl transition-all hover:bg-slate-800/80 cursor-pointer group flex flex-col justify-between relative overflow-hidden"
+            >
+              {/* Subtle accent line on hover */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 to-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
 
-                  return (
-                    <tr key={`${schedule.id}-${item.id}`} className="hover:bg-slate-800/40 transition-colors">
-                      {/* No */}
-                      <td className="py-3.5 px-3 text-center font-bold font-mono text-cyan-400/90 text-xs">
-                        {idx + 1}
-                      </td>
+              <div>
+                {/* Header: Name & SPK */}
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-xl group-hover:bg-cyan-500/20 transition-colors shrink-0 mt-0.5">
+                      <Building2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-white text-base group-hover:text-cyan-300 transition-colors uppercase tracking-wide">
+                        {schedule.hospitalName}
+                      </h3>
+                      <span className="font-mono text-xs text-cyan-400 bg-cyan-950 px-2.5 py-0.5 rounded-full border border-cyan-500/30 font-bold inline-block mt-1">
+                        {schedule.workOrderNumber}
+                      </span>
+                    </div>
+                  </div>
 
-                      {/* Nama Alat & RS */}
-                      <td className="py-3.5 px-4">
-                        <div className="font-bold text-white text-xs">
-                          {item.unitTitle || item.deviceName}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[10px] text-cyan-400 mt-0.5">
-                          <Building2 className="w-3 h-3 shrink-0 text-cyan-500" />
-                          <span className="truncate font-medium">{schedule.hospitalName}</span>
-                          <span className="text-slate-500">({schedule.workOrderNumber})</span>
-                        </div>
-                      </td>
+                  {/* Status Badge */}
+                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 border ${
+                    percentCetak === 100 
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' 
+                      : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  }`}>
+                    {percentCetak === 100 ? 'Sertifikat Terbit' : 'Proses Selia'}
+                  </span>
+                </div>
 
-                      {/* Merk & Serial Number */}
-                      <td className="py-3.5 px-3">
-                        <span className="font-semibold text-slate-300 block">{item.brandModel || '-'}</span>
-                        <span className="text-[10px] text-slate-400 font-mono block">SN: {item.serialNumber || '-'}</span>
-                      </td>
+                {/* No Label Range Highlight */}
+                <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800/80 mb-4 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Tag className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="text-xs text-slate-400">No. Label:</span>
+                    <span className="font-mono text-sm font-black text-amber-300 tracking-wider">
+                      {labelRangeText}
+                    </span>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-slate-300 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
+                    {totalCount} Label Alat
+                  </span>
+                </div>
 
-                      {/* Label Number */}
-                      <td className="py-3.5 px-3 text-center">
-                        <span className="font-mono text-xs font-bold text-amber-300 bg-amber-950/40 px-2.5 py-1 rounded-md border border-amber-500/30 inline-block">
-                          {item.labelNumber || '-'}
-                        </span>
-                      </td>
+                {/* Progress Bar & Status Counts */}
+                <div className="grid grid-cols-3 gap-2 text-center text-[11px] mb-4">
+                  <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800/60">
+                    <span className="text-slate-400 block text-[10px]">Belum Selia</span>
+                    <span className="font-bold text-amber-400 font-mono text-xs">{countBelum}</span>
+                  </div>
+                  <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800/60">
+                    <span className="text-slate-400 block text-[10px]">Proses Selia</span>
+                    <span className="font-bold text-cyan-400 font-mono text-xs">{countProses}</span>
+                  </div>
+                  <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800/60">
+                    <span className="text-slate-400 block text-[10px]">Cetak Sertifikat</span>
+                    <span className="font-bold text-emerald-400 font-mono text-xs">{countCetak}</span>
+                  </div>
+                </div>
+              </div>
 
-                      {/* Ruang */}
-                      <td className="py-3.5 px-3 text-slate-300 font-medium">
-                        {item.room || 'Layanan RS'}
-                      </td>
-
-                      {/* Status Buttons for 'Belum Selia', 'Proses Selia', 'Cetak Sertifikat' */}
-                      <td className="py-3.5 px-4 text-center">
-                        <div className="inline-flex p-1 bg-slate-950 rounded-xl border border-slate-800 gap-1 w-full max-w-xs">
-                          {/* Button 1: Belum Selia */}
-                          <button
-                            onClick={() => handleToolStatusChange(item, schedule, 'Belum Diselia')}
-                            className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
-                              isBelum
-                                ? 'bg-amber-500 text-slate-950 shadow-md ring-1 ring-amber-400'
-                                : 'text-slate-400 hover:text-amber-300 hover:bg-slate-900'
-                            }`}
-                            title="Tandai Belum Selia"
-                          >
-                            <Clock className="w-3 h-3" />
-                            <span>Belum Selia</span>
-                          </button>
-
-                          {/* Button 2: Proses Selia */}
-                          <button
-                            onClick={() => handleToolStatusChange(item, schedule, 'Sedang Proses Selia')}
-                            className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
-                              isProses
-                                ? 'bg-cyan-500 text-slate-950 shadow-md ring-1 ring-cyan-400'
-                                : 'text-slate-400 hover:text-cyan-300 hover:bg-slate-900'
-                            }`}
-                            title="Tandai Proses Selia"
-                          >
-                            <SlidersHorizontal className="w-3 h-3" />
-                            <span>Proses Selia</span>
-                          </button>
-
-                          {/* Button 3: Cetak Sertifikat */}
-                          <button
-                            onClick={() => handleToolStatusChange(item, schedule, 'Sudah Cetak Sertifikat')}
-                            className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
-                              isCetak
-                                ? 'bg-emerald-500 text-slate-950 shadow-md ring-1 ring-emerald-400'
-                                : 'text-slate-400 hover:text-emerald-300 hover:bg-slate-900'
-                            }`}
-                            title="Tandai Cetak Sertifikat"
-                          >
-                            <CheckCircle2 className="w-3 h-3" />
-                            <span>Cetak Sertifikat</span>
-                          </button>
-                        </div>
-                      </td>
-
-                      {/* Notes / Catatan Input Mapped Per Individual Tool */}
-                      <td className="py-3.5 px-4">
-                        <input
-                          type="text"
-                          placeholder="Tambahkan catatan alat..."
-                          value={item.keterangan || ''}
-                          onChange={(e) => handleToolNotesChange(item, schedule, e.target.value)}
-                          className="w-full bg-slate-950/90 border border-slate-700/80 focus:border-cyan-400 text-white rounded-xl px-3 py-1.5 text-xs placeholder-slate-500 focus:outline-none shadow-inner"
-                        />
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Footer info */}
-        <div className="p-4 bg-slate-950/90 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>Perubahan status & catatan tersimpan otomatis per unit alat medis.</span>
-          </div>
-          <p className="font-mono text-[11px] text-slate-500">
-            Penanggung Jawab: Hafizh Pasifianto, S.Tr.T. (MT PT. Sarana Multi Kalibrasi)
-          </p>
-        </div>
+              {/* Bottom Action Button */}
+              <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
+                <span className="text-slate-400 text-[11px]">
+                  Progres: <strong className="text-emerald-400">{percentCetak}% Sertifikat</strong>
+                </span>
+                <span className="font-bold text-cyan-400 group-hover:text-cyan-300 flex items-center gap-1">
+                  <span>Kelola Monitoring Selia</span>
+                  <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                </span>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

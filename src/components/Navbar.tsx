@@ -2,25 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { 
   Activity, 
   Calendar, 
-  Bell, 
   Wrench, 
   Wallet, 
-  Building2, 
-  PlusCircle, 
   FileText,
-  ChevronLeft,
-  ChevronRight,
   Clock,
   Tablet,
   LogOut,
-  Settings,
-  Trash2,
-  ShieldCheck,
   Award,
-  User,
   FileCheck
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { CalibrationSchedule, CalibratorAsset } from '../types';
 import { getUrgencyInfo } from '../utils/helpers';
 import { CompanyLogo } from './CompanyLogo';
@@ -39,21 +29,6 @@ interface NavbarProps {
   onOpenNewSchedule: () => void;
   onOpenNewSph?: () => void;
   onPurgeAllData?: () => void;
-}
-
-interface SlideGroup {
-  id: number;
-  title: string;
-  category: string;
-  badge: string;
-  tabs: {
-    id: AppTab;
-    label: string;
-    sublabel: string;
-    icon: React.ElementType;
-    badgeVal?: string | number;
-    badgeColor?: string;
-  }[];
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -85,100 +60,83 @@ export const Navbar: React.FC<NavbarProps> = ({
     Boolean(s.completedDate)
   ).length;
 
-  // Define 3 clean, categorized Slide Groups containing all modules
-  const slideGroups: SlideGroup[] = [
+  interface TabItem {
+    id: AppTab;
+    label: string;
+    sublabel: string;
+    icon: React.ElementType;
+    badgeVal?: string | number;
+    badgeColor?: string;
+  }
+
+  const allNavTabs: TabItem[] = [
     {
-      id: 1,
-      title: 'Alur Utama Operasional RS',
-      category: 'Alur Utama',
-      badge: 'Tahap 1-3',
-      tabs: [
-        {
-          id: 'dashboard',
-          label: 'Dashboard Utama',
-          sublabel: 'Monitoring & Kalender',
-          icon: Activity
-        },
-        {
-          id: 'sph',
-          label: 'Penawaran SPH',
-          sublabel: 'Katalog 121 Alat & Cetak',
-          icon: FileText,
-          badgeVal: sphCount > 0 ? sphCount : undefined,
-          badgeColor: 'bg-cyan-950 text-cyan-300 border-cyan-500/40'
-        },
-        {
-          id: 'schedules',
-          label: 'Penjadwalan RS',
-          sublabel: 'SPK, BAP, BASTP & Teknisi',
-          icon: Calendar,
-          badgeVal: schedules.length,
-          badgeColor: 'bg-emerald-950 text-emerald-300 border-emerald-500/40'
-        },
-        {
-          id: 'selia',
-          label: 'Selia Dashboard',
-          sublabel: 'Proses & Cetak Sertifikat',
-          icon: FileCheck,
-          badgeVal: completedSchedulesCount > 0 ? `${completedSchedulesCount} Selesai` : undefined,
-          badgeColor: 'bg-teal-950 text-teal-300 border-teal-500/40'
-        }
-      ]
+      id: 'dashboard',
+      label: 'Dashboard Utama',
+      sublabel: 'Monitoring & Kalender',
+      icon: Activity
     },
     {
-      id: 2,
-      title: 'Monitoring Kepatuhan & Aset',
-      category: 'Kepatuhan & Alat',
-      badge: 'Monitoring',
-      tabs: [
-        {
-          id: 'calibrators',
-          label: 'Aset Alat Kalibrator',
-          sublabel: 'Standar Uji & Ketertelusuran',
-          icon: Wrench,
-          badgeVal: expiringCalibratorsCount > 0 ? `${expiringCalibratorsCount} Perlu Uji` : `${calibrators.length} Unit`,
-          badgeColor: expiringCalibratorsCount > 0 ? 'bg-amber-950 text-amber-300 border-amber-500/40' : 'bg-slate-800 text-slate-300 border-slate-700'
-        },
-        {
-          id: 'tablets',
-          label: 'Peminjaman Tablet',
-          sublabel: '6 Unit Tablet Kalibrasi',
-          icon: Tablet,
-          badgeVal: borrowedTabletsCount > 0 ? `${borrowedTabletsCount} Dipinjam` : '6 Siap',
-          badgeColor: borrowedTabletsCount > 0 ? 'bg-amber-950 text-amber-300 border-amber-500/40' : 'bg-emerald-950 text-emerald-300 border-emerald-500/40'
-        }
-      ]
+      id: 'sph',
+      label: 'Penawaran SPH',
+      sublabel: 'Katalog 121 Alat & Cetak',
+      icon: FileText,
+      badgeVal: sphCount > 0 ? sphCount : undefined,
+      badgeColor: 'bg-cyan-950 text-cyan-300 border-cyan-500/40'
     },
     {
-      id: 3,
-      title: 'Sistem & Master Database',
-      category: 'Sistem & Master',
-      badge: 'Database',
-      tabs: [
-        {
-          id: 'financial',
-          label: 'Aset Keuangan',
-          sublabel: 'Buku Kas & Piutang SPH',
-          icon: Wallet
-        },
-        {
-          id: 'masters',
-          label: 'Master & Selia Sertifikat',
-          sublabel: 'Proses Selia, Sertifikat, RS & Teknisi',
-          icon: Award,
-          badgeVal: 'Proses Selia',
-          badgeColor: 'bg-cyan-950 text-cyan-300 border-cyan-500/40'
-        }
-      ]
+      id: 'schedules',
+      label: 'Penjadwalan RS',
+      sublabel: 'SPK, BAP, BASTP & Teknisi',
+      icon: Calendar,
+      badgeVal: schedules.length > 0 ? schedules.length : undefined,
+      badgeColor: 'bg-emerald-950 text-emerald-300 border-emerald-500/40'
+    },
+    {
+      id: 'selia',
+      label: 'Selia Dashboard',
+      sublabel: 'Proses & Cetak Sertifikat',
+      icon: FileCheck,
+      badgeVal: completedSchedulesCount > 0 ? `${completedSchedulesCount} Selesai` : undefined,
+      badgeColor: 'bg-teal-950 text-teal-300 border-teal-500/40'
+    },
+    {
+      id: 'calibrators',
+      label: 'Aset Alat Kalibrator',
+      sublabel: 'Standar Uji & Ketertelusuran',
+      icon: Wrench,
+      badgeVal: expiringCalibratorsCount > 0 ? `${expiringCalibratorsCount} Perlu Uji` : `${calibrators.length} Unit`,
+      badgeColor: expiringCalibratorsCount > 0 ? 'bg-amber-950 text-amber-300 border-amber-500/40' : 'bg-slate-800 text-slate-300 border-slate-700'
+    },
+    {
+      id: 'tablets',
+      label: 'Peminjaman Tablet',
+      sublabel: '6 Unit Tablet Kalibrasi',
+      icon: Tablet,
+      badgeVal: borrowedTabletsCount > 0 ? `${borrowedTabletsCount} Dipinjam` : '6 Siap',
+      badgeColor: borrowedTabletsCount > 0 ? 'bg-amber-950 text-amber-300 border-amber-500/40' : 'bg-emerald-950 text-emerald-300 border-emerald-500/40'
+    },
+    {
+      id: 'financial',
+      label: 'Aset Keuangan',
+      sublabel: 'Buku Kas & Piutang SPH',
+      icon: Wallet
+    },
+    {
+      id: 'masters',
+      label: 'Master Data RS & Tim',
+      sublabel: 'Tim Teknisi, Marketing & RS',
+      icon: Award
     }
   ];
 
-  // Determine current slide index based on activeTab
-  const getSlideIndexForTab = (tab: AppTab): number => {
-    if (tab === 'dashboard' || tab === 'sph' || tab === 'schedules' || tab === 'selia') return 0;
-    if (tab === 'calibrators' || tab === 'tablets') return 1;
-    return 2;
-  };
+  const allowedTabs: AppTab[] = role === 'admin_keuangan'
+    ? ['sph', 'schedules', 'financial', 'masters']
+    : role === 'admin_teknik'
+    ? ['schedules', 'selia', 'calibrators', 'tablets', 'masters']
+    : ['dashboard', 'sph', 'schedules', 'selia', 'calibrators', 'tablets', 'financial', 'masters', 'templates'];
+
+  const visibleNavTabs = allNavTabs.filter(tab => allowedTabs.includes(tab.id));
 
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
@@ -189,26 +147,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     }, 1000);
     return () => clearInterval(timer);
   }, []);
-
-  const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(() => getSlideIndexForTab(activeTab));
-
-  // Sync slide index whenever activeTab changes
-  useEffect(() => {
-    const targetSlide = getSlideIndexForTab(activeTab);
-    setCurrentSlideIndex(targetSlide);
-  }, [activeTab]);
-
-  const handlePrevSlide = () => {
-    const newIdx = (currentSlideIndex - 1 + slideGroups.length) % slideGroups.length;
-    setCurrentSlideIndex(newIdx);
-  };
-
-  const handleNextSlide = () => {
-    const newIdx = (currentSlideIndex + 1) % slideGroups.length;
-    setCurrentSlideIndex(newIdx);
-  };
-
-  const currentGroup = slideGroups[currentSlideIndex];
 
   return (
     <header className="bg-[#1C658C] text-white sticky top-0 z-40 border-b border-[#144966] shadow-xl select-none">
@@ -270,13 +208,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center gap-2.5 shrink-0">
             {user && (
               <div className="hidden sm:flex items-center gap-2 bg-[#0F364C] px-3 py-1.5 rounded-xl border border-[#1C658C] shadow-sm text-xs">
-                <div className={`w-2 h-2 rounded-full ${role === 'admin_keuangan' ? 'bg-emerald-400' : 'bg-cyan-400'} animate-pulse`}></div>
+                <div className={`w-2 h-2 rounded-full ${role === 'admin_utama' ? 'bg-indigo-400' : role === 'admin_keuangan' ? 'bg-emerald-400' : 'bg-cyan-400'} animate-pulse`}></div>
                 <div className="flex flex-col text-left">
                   <span className="font-bold text-white text-[11px] leading-tight">
-                    {user.displayName || (role === 'admin_keuangan' ? 'Admin Keuangan' : 'Admin Teknik')}
+                    {user.displayName || (role === 'admin_utama' ? 'Admin Utama' : role === 'admin_keuangan' ? 'Admin Keuangan' : 'Admin Teknik')}
                   </span>
                   <span className="text-[9px] text-[#D8D2CB]/80 font-mono leading-tight">
-                    {user.email || (role === 'admin_keuangan' ? 'adminkeuangan@ptsmk.com' : 'adminteknik@ptsmk.com')}
+                    {user.email || (role === 'admin_utama' ? 'adminutama@ptsmk.com' : role === 'admin_keuangan' ? 'adminkeuangan@ptsmk.com' : 'adminteknik@ptsmk.com')}
                   </span>
                 </div>
               </div>
@@ -296,106 +234,36 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* SLIDE NAVIGATION BAR: Flux Aesthetic with Refined Tab Sliders            */}
+      {/* DIRECT NAVIGATION BAR: Clean, flat navigation bar for all permitted tabs */}
       {/* ========================================================================= */}
-      <div className="bg-[#144966] border-t border-[#1C658C] px-2 sm:px-6 py-2.5 shadow-inner">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-2.5">
-          
-          {/* Sisi Kiri: Navigasi Slide */}
-          <div className="flex items-center justify-between md:justify-start gap-2 shrink-0">
-            <div className="flex items-center gap-1 bg-[#0F364C] p-1 rounded-xl border border-[#1C658C] shadow-sm">
+      <div className="bg-[#144966] border-t border-[#1C658C] px-3 sm:px-6 py-2 shadow-inner">
+        <div className="max-w-7xl mx-auto flex items-center gap-2 overflow-x-auto scrollbar-none py-0.5">
+          {visibleNavTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+
+            return (
               <button
-                onClick={handlePrevSlide}
-                id="btn-slide-prev"
-                className="p-1.5 rounded-lg hover:bg-[#1C658C] text-[#D8D2CB] hover:text-white transition-all active:scale-90"
-                title="Slide Sebelumnya"
+                key={tab.id}
+                id={`nav-${tab.id}-tab`}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap border shrink-0 ${
+                  isActive
+                    ? 'bg-gradient-to-r from-[#1C658C] to-[#398AB9] text-white border-[#398AB9] shadow-md ring-1 ring-[#398AB9]/50 scale-[1.01]'
+                    : 'bg-[#0F364C]/90 text-[#D8D2CB] hover:text-white hover:bg-[#1C658C] border-[#1C658C]/60'
+                }`}
               >
-                <ChevronLeft className="w-4 h-4" />
+                <Icon className={`w-4 h-4 ${isActive ? 'text-[#EEEEEE]' : 'text-[#398AB9]'}`} />
+                <span className="text-[12px] font-bold leading-none">{tab.label}</span>
+
+                {tab.badgeVal !== undefined && (
+                  <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${tab.badgeColor || 'bg-[#0F364C] text-[#EEEEEE] border-[#1C658C]'}`}>
+                    {tab.badgeVal}
+                  </span>
+                )}
               </button>
-
-              {/* Slide Group Switcher Buttons */}
-              <div className="flex items-center space-x-1 px-1">
-                {slideGroups.map((slide, idx) => (
-                  <button
-                    key={slide.id}
-                    id={`btn-slide-selector-${slide.id}`}
-                    onClick={() => setCurrentSlideIndex(idx)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
-                      currentSlideIndex === idx
-                        ? 'bg-[#398AB9] text-white shadow-sm font-semibold'
-                        : 'text-[#D8D2CB] hover:text-white hover:bg-[#1C658C]/70'
-                    }`}
-                  >
-                    <span className="text-[10px] opacity-80 font-mono">0{slide.id}</span>
-                    <span className="hidden sm:inline">{slide.category}</span>
-                    <span className="sm:hidden">Slide {slide.id}</span>
-                  </button>
-                ))}
-              </div>
-
-              <button
-                onClick={handleNextSlide}
-                id="btn-slide-next"
-                className="p-1.5 rounded-lg hover:bg-[#1C658C] text-[#D8D2CB] hover:text-white transition-all active:scale-90"
-                title="Slide Berikutnya"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Slide Title Label */}
-            <div className="hidden lg:flex items-center gap-2 text-xs text-[#D8D2CB] pl-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#398AB9]"></span>
-              <span className="font-semibold text-[#EEEEEE]">{currentGroup.title}</span>
-            </div>
-          </div>
-
-          {/* Sisi Kanan: Pilihan Menu / Tab Aktif dalam Slide */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={`slide-content-${currentGroup.id}`}
-                initial={{ opacity: 0, x: 15 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -15 }}
-                transition={{ duration: 0.18, ease: 'easeOut' }}
-                className="flex items-center gap-1.5 w-full md:w-auto"
-              >
-                {currentGroup.tabs.map((tab) => {
-                  const Icon = tab.icon;
-                  const isActive = activeTab === tab.id;
-
-                  return (
-                    <button
-                      key={tab.id}
-                      id={`nav-${tab.id}-tab`}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap border shrink-0 ${
-                        isActive
-                          ? 'bg-gradient-to-r from-[#1C658C] to-[#398AB9] text-white border-[#398AB9] shadow-md ring-1 ring-[#398AB9]/50'
-                          : 'bg-[#0F364C]/90 text-[#D8D2CB] hover:text-white hover:bg-[#1C658C] border-[#1C658C]/60'
-                      }`}
-                    >
-                      <Icon className={`w-4 h-4 ${isActive ? 'text-[#EEEEEE]' : 'text-[#398AB9]'}`} />
-                      <div className="text-left flex flex-col">
-                        <span className="leading-tight">{tab.label}</span>
-                        <span className={`text-[10px] leading-tight font-normal ${isActive ? 'text-[#EEEEEE]/90' : 'text-[#D8D2CB]/80'}`}>
-                          {tab.sublabel}
-                        </span>
-                      </div>
-
-                      {tab.badgeVal !== undefined && (
-                        <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${tab.badgeColor || 'bg-[#0F364C] text-[#EEEEEE] border-[#1C658C]'}`}>
-                          {tab.badgeVal}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-
+            );
+          })}
         </div>
       </div>
 

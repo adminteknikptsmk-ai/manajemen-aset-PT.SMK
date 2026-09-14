@@ -279,22 +279,11 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#D8D2CB]">
               <button
                 onClick={handleCompleteAll}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-lg text-xs flex items-center gap-2 shadow-xs transition-colors"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-lg text-xs flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Sudah Selesai Kalibrasi</span>
               </button>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  onClick={() => onOpenPrintModal(schedule)}
-                  className="bg-[#398AB9] hover:bg-[#1C658C] text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-xs transition-colors"
-                  title="Cetak Berita Acara Pekerjaan (BAP)"
-                >
-                  <Briefcase className="w-3.5 h-3.5" />
-                  <span>Cetak BAP</span>
-                </button>
-              </div>
             </div>
 
             {/* Banner info for Selia & Certificate Status */}
@@ -316,7 +305,7 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
                       onClose();
                       onOpenSeliaManager();
                     }}
-                    className="px-3 py-1.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs rounded-lg flex items-center gap-1 shadow-sm transition-all shrink-0"
+                    className="px-3 py-1.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs rounded-lg flex items-center gap-1 shadow-sm transition-all shrink-0 cursor-pointer"
                   >
                     <span>Buka Menu Selia & Sertifikat ➔</span>
                   </button>
@@ -339,7 +328,6 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
                     <th className="py-2.5 px-3">Nama Alat Medis</th>
                     <th className="py-2.5 px-3 text-center">Jumlah / Qty</th>
                     <th className="py-2.5 px-3">Status Pengujian</th>
-                    <th className="py-2.5 px-3">Akurasi / Deviasi (%)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#D8D2CB]">
@@ -356,7 +344,7 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
                         <select
                           value={device.status}
                           onChange={(e) => handleDeviceStatusChange(device.id, e.target.value as any)}
-                          className={`text-xs font-bold px-2 py-1 rounded-lg border bg-white focus:outline-none ${
+                          className={`text-xs font-bold px-2 py-1 rounded-lg border bg-white focus:outline-none cursor-pointer ${
                             device.status === 'Pass' ? 'text-emerald-700 border-emerald-300 bg-emerald-50' :
                             device.status === 'Fail' ? 'text-rose-700 border-rose-300 bg-rose-50' :
                             device.status === 'In Progress' ? 'text-[#1C658C] border-[#398AB9] bg-[#398AB9]/10' :
@@ -370,43 +358,10 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
                           <option value="Needs Adjustment">Perlu Penyesuaian</option>
                         </select>
                       </td>
-                      <td className="py-2.5 px-3">
-                        <input
-                          type="number"
-                          step="0.1"
-                          placeholder="0.5"
-                          value={device.measuredErrorPercent || ''}
-                          onChange={(e) => handleDeviceStatusChange(device.id, device.status, Number(e.target.value))}
-                          className="w-20 p-1 bg-white border border-[#D8D2CB] rounded text-center text-xs text-slate-800 font-mono focus:border-[#1C658C] focus:outline-none"
-                        /> %
-                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-            <div className="bg-[#EEEEEE]/40 p-3.5 rounded-xl border border-[#D8D2CB]">
-              <h4 className="font-bold text-[#1C658C] text-xs flex items-center gap-1.5 mb-1.5">
-                <Briefcase className="w-3.5 h-3.5" />
-                Upload Dokumen BAP (Scan / PDF)
-              </h4>
-              <PdfUploader 
-                folder="bap"
-                documentId={schedule.id}
-                existingPdfUrl={bapPdfUrl}
-                label="Dokumen BAP (Berita Acara Pengujian)"
-                onUploadSuccess={(url) => {
-                  setBapPdfUrl(url);
-                  onUpdateSchedule({ ...schedule, bapPdfUrl: url });
-                }}
-                onRemove={() => {
-                  setBapPdfUrl(undefined);
-                  onUpdateSchedule({ ...schedule, bapPdfUrl: '' });
-                }}
-              />
             </div>
           </div>
         </div>

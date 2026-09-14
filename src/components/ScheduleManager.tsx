@@ -454,39 +454,15 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
                 <div className="p-3 bg-[#EEEEEE]/30 border-t border-[#D8D2CB] flex items-center justify-between gap-1.5">
                   <button
                     onClick={() => onSelectSchedule(schedule)}
-                    className="flex-1 bg-[#1C658C] hover:bg-[#398AB9] text-white text-xs font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+                    className="flex-1 bg-[#1C658C] hover:bg-[#398AB9] text-white text-xs font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer"
                   >
                     <CheckSquare className="w-3.5 h-3.5" />
                     <span>Detail & Hasil</span>
                   </button>
 
                   <button
-                    onClick={() => onSendReminder(schedule)}
-                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 p-2 rounded-lg text-xs transition-colors shadow-xs"
-                    title="Kirim Notifikasi Pengingat WhatsApp"
-                  >
-                    <Send className="w-3.5 h-3.5 text-emerald-600" />
-                  </button>
-
-                  <button
-                    onClick={() => onOpenPrintModal(schedule)}
-                    className="bg-white hover:bg-[#EEEEEE] text-slate-700 border border-[#D8D2CB] p-2 rounded-lg text-xs transition-colors shadow-xs"
-                    title="Cetak SPK & Berita Acara PT SMK"
-                  >
-                    <Printer className="w-3.5 h-3.5 text-slate-600" />
-                  </button>
-
-                  <button
-                    onClick={() => exportSpkToWord(schedule)}
-                    className="bg-[#398AB9]/10 hover:bg-[#398AB9]/20 text-[#1C658C] border border-[#398AB9]/30 p-2 rounded-lg text-xs transition-colors shadow-xs"
-                    title="Download SPK Format Microsoft Word (.doc)"
-                  >
-                    <Download className="w-3.5 h-3.5 text-[#1C658C]" />
-                  </button>
-
-                  <button
                     onClick={() => onOpenEditScheduleModal(schedule)}
-                    className="bg-white hover:bg-[#EEEEEE] text-slate-700 border border-[#D8D2CB] p-2 rounded-lg text-xs transition-colors shadow-xs"
+                    className="bg-white hover:bg-[#EEEEEE] text-slate-700 border border-[#D8D2CB] p-2 rounded-lg text-xs transition-colors shadow-xs cursor-pointer"
                     title="Edit Jadwal"
                   >
                     <SlidersHorizontal className="w-3.5 h-3.5 text-slate-600" />
@@ -495,7 +471,7 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
                   {onDeleteSchedule && (
                     <button
                       onClick={() => setDeleteTargetSchedule(schedule)}
-                      className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 p-2 rounded-lg text-xs transition-colors shadow-xs"
+                      className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 p-2 rounded-lg text-xs transition-colors shadow-xs cursor-pointer"
                       title="Hapus Jadwal Kalibrasi"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -571,60 +547,15 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             onClick={() => onSelectSchedule(sch)}
-                            className="bg-[#1C658C]/10 hover:bg-[#1C658C]/20 text-[#1C658C] p-1.5 rounded-lg text-xs font-semibold transition-colors"
-                            title="Buka Detail & Checklist"
+                            className="bg-[#1C658C]/10 hover:bg-[#1C658C]/20 text-[#1C658C] px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                            title="Buka Detail & Hasil"
                           >
                             <CheckSquare className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => onSendReminder(sch)}
-                            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 p-1.5 rounded-lg text-xs transition-colors border border-emerald-200"
-                            title="Kirim Notifikasi WA"
-                          >
-                            <Send className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => onOpenPrintModal(sch)}
-                            className="bg-white hover:bg-[#EEEEEE] text-slate-700 border border-[#D8D2CB] p-1.5 rounded-lg text-xs transition-colors"
-                            title="Cetak Dokumen SPK"
-                          >
-                            <Printer className="w-3.5 h-3.5" />
-                          </button>
-                          
-                          {sch.pdfUrl && (
-                            <a
-                              href={sch.pdfUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded-lg text-xs transition-colors"
-                              title="Lihat PDF SPK"
-                            >
-                              <FileText className="w-3.5 h-3.5" />
-                            </a>
-                          )}
-
-                          {sch.bapPdfUrl && (
-                            <a
-                              href={sch.bapPdfUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="bg-indigo-600 hover:bg-indigo-700 text-white p-1.5 rounded-lg text-xs transition-colors"
-                              title="Lihat PDF BAP"
-                            >
-                              <Briefcase className="w-3.5 h-3.5" />
-                            </a>
-                          )}
-
-                          <button
-                            onClick={() => exportSpkToWord(sch)}
-                            className="bg-[#398AB9]/10 hover:bg-[#398AB9]/20 text-[#1C658C] border border-[#398AB9]/30 p-1.5 rounded-lg text-xs transition-colors"
-                            title="Download SPK Word (.doc)"
-                          >
-                            <Download className="w-3.5 h-3.5" />
+                            <span>Detail & Hasil</span>
                           </button>
                           <button
                             onClick={() => onOpenEditScheduleModal(sch)}
-                            className="bg-white hover:bg-[#EEEEEE] text-slate-700 border border-[#D8D2CB] p-1.5 rounded-lg text-xs transition-colors"
+                            className="bg-white hover:bg-[#EEEEEE] text-slate-700 border border-[#D8D2CB] p-1.5 rounded-lg text-xs transition-colors cursor-pointer"
                             title="Edit"
                           >
                             <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -632,7 +563,7 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
                           {onDeleteSchedule && (
                             <button
                               onClick={() => setDeleteTargetSchedule(sch)}
-                              className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 p-1.5 rounded-lg text-xs transition-colors"
+                              className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 p-1.5 rounded-lg text-xs transition-colors cursor-pointer"
                               title="Hapus Jadwal"
                             >
                               <Trash2 className="w-3.5 h-3.5" />

@@ -30,6 +30,7 @@ export type AuditStatus =
   | 'Belum Diaudit'
   | 'Diverifikasi Auditor'
   | 'Lolos Audit'
+  | 'Tidak Lolos Audit'
   | 'Perlu Klarifikasi';
 
 export type SeliaStatus = 'Belum Diselia' | 'Sedang Proses Selia' | 'Sudah Cetak Sertifikat';
@@ -182,11 +183,13 @@ export interface FinancialAsset {
 export interface FinancialTransaction {
   id: string;
   date: string;
-  type: 'Pemasukan (Revenue Kalibrasi)' | 'Pengeluaran (Operasional Lapangan)' | 'Pengeluaran (Re-Kalibrasi BPFK/Alat)' | 'Pembelian Aset Baru';
+  type: string;
   category: string;
   amount: number;
   referenceNo: string;
   description: string;
+  pic?: string;
+  paymentMethod?: 'Transfer' | 'Cash';
   relatedHospitalName?: string;
   relatedWorkOrder?: string;
   marketingName?: string;

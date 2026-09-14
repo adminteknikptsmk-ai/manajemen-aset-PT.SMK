@@ -76,10 +76,10 @@ function formatBapOpeningParagraph(dateInput?: string): string {
 
 // Common Style Definitions
 const thinBorder = {
-  top: { style: 'thin', color: { rgb: '000000' } },
-  bottom: { style: 'thin', color: { rgb: '000000' } },
-  left: { style: 'thin', color: { rgb: '000000' } },
-  right: { style: 'thin', color: { rgb: '000000' } },
+  top: { style: 'medium', color: { rgb: '000000' } },
+  bottom: { style: 'medium', color: { rgb: '000000' } },
+  left: { style: 'medium', color: { rgb: '000000' } },
+  right: { style: 'medium', color: { rgb: '000000' } },
 };
 
 const headerStyle = {

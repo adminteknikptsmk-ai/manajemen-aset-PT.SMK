@@ -37,6 +37,7 @@ import { exportSphToWord } from '../utils/sphWordExport';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 import { exportBapToExcel } from '../utils/bapExcelExport';
 import { createBapFromSph } from '../utils/bapHelpers';
+import { downloadSphPdf } from '../utils/sphPdfExport';
 
 interface SphManagerProps {
   sphList: SphQuotation[];
@@ -530,16 +531,6 @@ export const SphManager: React.FC<SphManagerProps> = ({
                       <>
                         <button
                           type="button"
-                          onClick={() => onOpenBap?.(sph)}
-                          className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
-                          title="Buka dokumen BAP (Rekap, BAP, Rekap Non PO, BAP Non PO) untuk SPH ini"
-                        >
-                          <FileSpreadsheet className="w-3.5 h-3.5" />
-                          <span>Buka BAP (4 Sheet)</span>
-                        </button>
-
-                        <button
-                          type="button"
                           onClick={() => handleDownloadBap(sph)}
                           className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold rounded-lg transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
                           title="Unduh 1 file Excel (.xlsx) dengan 4 sheet: Rekap, BAP, Rekap Non PO, BAP Non PO"
@@ -556,20 +547,11 @@ export const SphManager: React.FC<SphManagerProps> = ({
                               onConvertToSpk(sph);
                             }
                           }}
-                          className="px-3 py-1.5 bg-[#1C658C] hover:bg-[#144966] text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shadow-xs"
+                          className="px-3 py-1.5 bg-[#1C658C] hover:bg-[#144966] text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
                           title="Buka agenda kalibrasi RS untuk SPH ini"
                         >
                           <Calendar className="w-3.5 h-3.5" />
                           <span>Jadwal RS</span>
-                        </button>
-
-                        <button
-                          onClick={() => onConvertToSpk(sph)}
-                          className="px-3 py-1.5 bg-[#398AB9] hover:bg-[#2b769f] text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shadow-xs"
-                          title="Konversi penawaran deal ini menjadi Surat Perintah Kerja (SPK) & Jadwal Kalibrasi"
-                        >
-                          <ArrowRight className="w-3.5 h-3.5" />
-                          <span>SPK</span>
                         </button>
                       </>
                     ) : (
@@ -586,37 +568,17 @@ export const SphManager: React.FC<SphManagerProps> = ({
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => onPrintSph(sph)}
-                      className="px-3.5 py-1.5 bg-[#1C658C] hover:bg-[#398AB9] text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shadow-sm"
+                      onClick={() => downloadSphPdf(sph)}
+                      className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      title="Unduh PDF SPH Resmi"
                     >
-                      <Printer className="w-3.5 h-3.5" />
-                      <span>Cetak SPH (3 Hal)</span>
-                    </button>
-
-                    {sph.pdfUrl && (
-                      <a
-                        href={sph.pdfUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shadow-sm"
-                      >
-                        <FileText className="w-3.5 h-3.5" />
-                        <span>PDF</span>
-                      </a>
-                    )}
-
-                    <button
-                      onClick={() => exportSphToWord(sph)}
-                      className="px-3 py-1.5 bg-[#398AB9]/15 hover:bg-[#398AB9]/25 text-[#1C658C] border border-[#398AB9]/30 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5"
-                      title="Download SPH Format Microsoft Word (.doc) Lengkap 3 Halaman"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Word (.doc)</span>
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>PDF SPH</span>
                     </button>
 
                     <button
                       onClick={() => onEditSph(sph)}
-                      className="px-3 py-1.5 bg-[#EEEEEE] hover:bg-[#D8D2CB]/50 text-slate-700 hover:text-[#1C658C] text-xs font-medium rounded-lg border border-[#D8D2CB] transition-all flex items-center gap-1.5"
+                      className="px-3 py-1.5 bg-[#EEEEEE] hover:bg-[#D8D2CB]/50 text-slate-700 hover:text-[#1C658C] text-xs font-medium rounded-lg border border-[#D8D2CB] transition-all flex items-center gap-1.5 cursor-pointer"
                     >
                       <Edit3 className="w-3.5 h-3.5 text-slate-500" />
                       <span>Nego / Edit SPH</span>
@@ -624,7 +586,7 @@ export const SphManager: React.FC<SphManagerProps> = ({
 
                     <button
                       onClick={() => setDeleteTargetSph(sph)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
                       title="Hapus SPH"
                     >
                       <Trash2 className="w-4 h-4" />

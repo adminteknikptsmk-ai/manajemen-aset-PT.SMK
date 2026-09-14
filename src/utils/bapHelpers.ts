@@ -1,4 +1,5 @@
 import { SphQuotation, BapDocument, BapItem } from '../types';
+import { extractSphPrefix, generateBapNumberFromSph } from './helpers';
 
 /**
  * Format date to Indonesian full date (e.g. "Jumat, 04 September 2026")
@@ -42,8 +43,9 @@ export function recalculateBapItem(item: BapItem, dateCols: string[]): BapItem {
  * Create a new BapDocument from an SPH Quotation
  */
 export function createBapFromSph(sph: SphQuotation, existingLabelNo?: string): BapDocument {
-  // Derive label number (e.g. "066" or "062")
-  const labelNumber = existingLabelNo || '066';
+  // Derive 3-digit prefix from SPH number (e.g. "045/SMK-SPH/VII-2026" -> "045")
+  const labelNumber = existingLabelNo || extractSphPrefix(sph.sphNumber);
+  const bapNumber = generateBapNumberFromSph(sph.sphNumber);
   const now = new Date();
   const romanMonths = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
   const romanMonth = romanMonths[now.getMonth()] || 'IX';

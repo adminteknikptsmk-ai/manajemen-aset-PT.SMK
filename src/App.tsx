@@ -12,6 +12,7 @@ import { WorkOrderPrintModal } from './components/WorkOrderPrintModal';
 import { SphManager } from './components/SphManager';
 import { SphFormModal } from './components/SphFormModal';
 import { SphPrintModal } from './components/SphPrintModal';
+import { downloadSphPdf } from './utils/sphPdfExport';
 import { TabletLoanManager } from './components/TabletLoanManager';
 import { TemplateSettings } from './components/TemplateSettings';
 import { SeliaDashboard } from './components/SeliaDashboard';
@@ -33,7 +34,16 @@ import {
   BapDocument
 } from './types';
 
-import { getUrgencyInfo, generateWhatsAppMessage, TODAY_STR, calculateLabelRange, assignDeviceLabels } from './utils/helpers';
+import { 
+  getUrgencyInfo, 
+  generateWhatsAppMessage, 
+  TODAY_STR, 
+  calculateLabelRange, 
+  assignDeviceLabels, 
+  extractSphPrefix, 
+  generateSpkNumberFromSph, 
+  generateBapNumberFromSph 
+} from './utils/helpers';
 import { SPREADSHEET_CALIBRATORS, OFFICIAL_TABLETS } from './data/spreadsheetCalibrators';
 import confetti from 'canvas-confetti';
 import { Check, Send, AlertCircle, ArrowLeft, LogOut } from 'lucide-react';
@@ -70,8 +80,8 @@ export default function App() {
   const { data: schedules, add: addSchedule, update: updateSchedule, remove: removeSchedule, clearAll: clearAllSchedules } = useFirestoreData<CalibrationSchedule>('schedules');
   const { data: sphList, add: addSph, update: updateSph, remove: removeSph, clearAll: clearAllSph } = useFirestoreData<SphQuotation>('sphDocuments');
   const { data: calibrators, add: addCalibrator, update: updateCalibrator, remove: removeCalibrator, clearAll: clearAllCalibrators } = useFirestoreData<CalibratorAsset>('calibratorAssets');
-  const { data: financialAssets, add: addFinancialAsset, remove: removeFinancialAsset, clearAll: clearAllFinancialAssets } = useFirestoreData<FinancialAsset>('financialAssets');
-  const { data: transactions, add: addTransaction, remove: removeTransaction, clearAll: clearAllTransactions } = useFirestoreData<FinancialTransaction>('financialTransactions');
+  const { data: financialAssets, add: addFinancialAsset, update: updateFinancialAsset, remove: removeFinancialAsset, clearAll: clearAllFinancialAssets } = useFirestoreData<FinancialAsset>('financialAssets');
+  const { data: transactions, add: addTransaction, update: updateTransaction, remove: removeTransaction, clearAll: clearAllTransactions } = useFirestoreData<FinancialTransaction>('financialTransactions');
   const { data: hospitals, add: addHospital, update: updateHospital, remove: removeHospital, clearAll: clearAllHospitals } = useFirestoreData<Hospital>('hospitals');
   const { data: technicians, add: addTechnician, update: updateTechnician, remove: removeTechnician, clearAll: clearAllTechnicians } = useFirestoreData<Technician>('technicians');
   const { data: tablets, add: addTablet, update: updateTablet, remove: removeTablet, clearAll: clearAllTablets } = useFirestoreData<TabletDevice>('tabletAssets');
@@ -206,10 +216,10 @@ export default function App() {
       return existingSch;
     }
 
-    // Default hospital code: 062
-    const hospitalCode = '062';
+    // Extract 3 initial digits from SPH number (e.g. "045/SMK-SPH/VII-2026" -> "045")
+    const sphPrefix = extractSphPrefix(sph.sphNumber);
     const totalUnits = sph.items.reduce((sum, it) => sum + (it.quantity || 1), 0);
-    const labelRange = calculateLabelRange(hospitalCode, 1, Math.max(1, totalUnits));
+    const labelRange = calculateLabelRange(sphPrefix, 1, Math.max(1, totalUnits));
 
     const targetDevicesWithLabels = assignDeviceLabels(
       sph.items.map((it, idx) => ({
@@ -222,15 +232,16 @@ export default function App() {
         status: 'Pending' as const,
         notes: it.notes || ''
       })),
-      hospitalCode,
+      sphPrefix,
       1
     );
 
     const newSchedule: CalibrationSchedule = {
       id: `SCH-${Date.now().toString().slice(-6)}`,
-      workOrderNumber: `SPK/SMK/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${Math.floor(100 + Math.random() * 900)}`,
+      workOrderNumber: generateSpkNumberFromSph(sph.sphNumber),
+      bapNumber: generateBapNumberFromSph(sph.sphNumber),
       hospitalId: sph.hospitalId || `RS-${Date.now().toString().slice(-4)}`,
-      hospitalCode,
+      hospitalCode: sphPrefix,
       hospitalName: sph.hospitalName,
       hospitalAddress: sph.hospitalAddress,
       hospitalCity: sph.city || 'Surakarta',
@@ -310,10 +321,16 @@ export default function App() {
 
   // Convert Approved SPH directly into a SPK (Work Order)
   const handleConvertToSpkFromSph = (sph: SphQuotation) => {
+    const sphPrefix = extractSphPrefix(sph.sphNumber);
+    const totalUnits = sph.items.reduce((sum, it) => sum + (it.quantity || 1), 0);
+    const labelRange = calculateLabelRange(sphPrefix, 1, Math.max(1, totalUnits));
+
     const newScheduleFromSph: CalibrationSchedule = {
       id: `SCH-${Date.now().toString().slice(-6)}`,
-      workOrderNumber: `WO/SPK/2026/${Math.floor(100 + Math.random() * 900)}`,
+      workOrderNumber: generateSpkNumberFromSph(sph.sphNumber),
+      bapNumber: generateBapNumberFromSph(sph.sphNumber),
       hospitalId: sph.hospitalId || 'HOSP-001',
+      hospitalCode: sphPrefix,
       hospitalName: sph.hospitalName,
       hospitalAddress: sph.hospitalAddress,
       hospitalCity: sph.city || 'Surakarta',
@@ -325,16 +342,24 @@ export default function App() {
       leadTechnicianName: '',
       supportTechnicianIds: [],
       supportTechnicianNames: [],
-      targetDevices: sph.items.map((it, idx) => ({
-        id: `dev-${idx + 1}-${Date.now()}`,
-        name: it.description,
-        quantity: it.quantity,
-        room: '',
-        brandModel: '-',
-        serialNumber: '-',
-        status: 'Pending',
-        notes: it.notes || ''
-      })),
+      labelStart: labelRange.startLabel,
+      labelEnd: labelRange.endLabel,
+      labelRange: labelRange.displayRange,
+      labelSequenceStart: 1,
+      targetDevices: assignDeviceLabels(
+        sph.items.map((it, idx) => ({
+          id: `dev-${idx + 1}-${Date.now()}`,
+          name: it.description,
+          quantity: it.quantity,
+          room: '',
+          brandModel: '-',
+          serialNumber: '-',
+          status: 'Pending',
+          notes: it.notes || ''
+        })),
+        sphPrefix,
+        1
+      ),
       assignedCalibratorIds: [],
       assignedCalibratorNames: [],
       priority: 'Tinggi',
@@ -675,7 +700,8 @@ export default function App() {
                   setShowSphModal(true);
                 }}
                 onPrintSph={(sph) => {
-                  setPrintSph(sph);
+                  downloadSphPdf(sph);
+                  showToast(`Mengunduh dokumen PDF SPH ${sph.hospitalName}...`);
                 }}
                 onDeleteSph={handleDeleteSph}
                 onConvertToSpk={handleConvertToSpkFromSph}
@@ -802,6 +828,10 @@ export default function App() {
                 onAddTransaction={(newTrx) => {
                   addTransaction(newTrx);
                   showToast(`Transaksi ${newTrx.category} berhasil dicatat!`);
+                }}
+                onUpdateTransaction={(updatedTrx) => {
+                  updateTransaction(updatedTrx);
+                  showToast(`Transaksi ${updatedTrx.category} berhasil diperbarui!`);
                 }}
                 onAddFinancialAsset={(newAsset) => {
                   addFinancialAsset(newAsset);

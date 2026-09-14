@@ -1,17 +1,79 @@
 import { CalibrationSchedule, AutomaticReminder, UrgencyLevel, Hospital, MedicalDeviceToCalibrate, DeviceSeliaItem } from '../types';
 
 // ==========================================
-// 7-DIGIT CALIBRATION LABEL NUMBER SYSTEM
-// Format: 7 Digits (e.g. 1000001)
-// [100]  -> 3 Digits Hospital Code (starts at 100)
-// [0001] -> 4 Digits Sequential Label Number (e.g. 0001, 0102, 1879)
+// 3-DIGIT SPH PREFIX & LABEL / DOCUMENT NUMBER SYSTEM
+// Format: 3 Initial Digits of SPH Number
+// Example SPH: "045/SMK-SPH/VII-2026" -> Prefix: "045"
+// - Label Number: 045.0001 s/d 045.0020
+// - SPK Number:   045/SMK-SPK/VII/2026
+// - BAP Number:   045/SMK/BAP/VII/2026
 // ==========================================
+
+export function extractSphPrefix(sphNumber?: string): string {
+  if (!sphNumber) return '001';
+  // Match initial 3 digits or leading digits at the beginning of SPH number
+  const leadingMatch = sphNumber.match(/^(\d{1,3})/);
+  if (leadingMatch) {
+    return leadingMatch[1].padStart(3, '0');
+  }
+  const anyDigits = sphNumber.match(/(\d+)/);
+  if (anyDigits) {
+    return anyDigits[1].padStart(3, '0').slice(-3);
+  }
+  return '001';
+}
+
+export function generateSpkNumberFromSph(sphNumber?: string, dateStr?: string): string {
+  if (!sphNumber) {
+    const year = dateStr ? dateStr.slice(0, 4) : '2026';
+    const month = dateStr ? dateStr.slice(5, 7) : '09';
+    return `001/SMK-SPK/${month}/${year}`;
+  }
+
+  const prefix = extractSphPrefix(sphNumber);
+  
+  const suffixMatch = sphNumber.match(/\/([I|V|X|L|C|D|M]+)[-\/](\d{4})/i);
+  if (suffixMatch) {
+    const month = suffixMatch[1].toUpperCase();
+    const year = suffixMatch[2];
+    return `${prefix}/SMK-SPK/${month}/${year}`;
+  }
+
+  const nowYear = dateStr ? dateStr.slice(0, 4) : '2026';
+  const nowMonth = dateStr ? dateStr.slice(5, 7) : '09';
+  return `${prefix}/SMK-SPK/${nowMonth}/${nowYear}`;
+}
+
+export function generateBapNumberFromSph(sphNumber?: string, dateStr?: string): string {
+  if (!sphNumber) {
+    return `001/SMK/BAP/IX/2026`;
+  }
+
+  const prefix = extractSphPrefix(sphNumber);
+  
+  const suffixMatch = sphNumber.match(/\/([I|V|X|L|C|D|M]+)[-\/](\d{4})/i);
+  if (suffixMatch) {
+    const month = suffixMatch[1].toUpperCase();
+    const year = suffixMatch[2];
+    return `${prefix}/SMK/BAP/${month}/${year}`;
+  }
+
+  const nowYear = dateStr ? dateStr.slice(0, 4) : '2026';
+  const nowMonth = dateStr ? dateStr.slice(5, 7) : '09';
+  return `${prefix}/SMK/BAP/${nowMonth}/${nowYear}`;
+}
 
 export function getHospitalCode(hospitalIdOrName?: string, hospitals: Hospital[] = []): string {
   if (!hospitalIdOrName) return '100';
+
+  // If hospitalIdOrName looks like an SPH number, extract prefix "045"
+  if (hospitalIdOrName.includes('SPH') || hospitalIdOrName.includes('/')) {
+    return extractSphPrefix(hospitalIdOrName);
+  }
+
   const found = hospitals.find(h => h.id === hospitalIdOrName || h.name === hospitalIdOrName);
   if (found && found.hospitalCode) {
-    return found.hospitalCode;
+    return extractSphPrefix(found.hospitalCode);
   }
   const idx = hospitals.findIndex(h => h.id === hospitalIdOrName || h.name === hospitalIdOrName);
   if (idx !== -1) {
@@ -21,14 +83,14 @@ export function getHospitalCode(hospitalIdOrName?: string, hospitals: Hospital[]
   if (numMatch) {
     const parsed = parseInt(numMatch[0], 10);
     if (!isNaN(parsed)) {
-      return String(100 + (parsed % 900));
+      return String(parsed).padStart(3, '0').slice(-3);
     }
   }
   return '100';
 }
 
-export function formatLabelNumber(hospitalCode: string = '100', sequence: number = 1): string {
-  const cleanCode = (hospitalCode || '100').toString().padStart(3, '0').slice(-3);
+export function formatLabelNumber(codePrefix: string = '001', sequence: number = 1): string {
+  const cleanCode = extractSphPrefix(codePrefix);
   const cleanSeq = String(Math.max(1, sequence)).padStart(4, '0');
   return `${cleanCode}.${cleanSeq}`;
 }
